@@ -32,22 +32,22 @@
     <div class="sidebar-divider my-2 border-top border-secondary-subtle"></div>
     <small class="px-3 text-uppercase text-muted font-monospace fw-bold" style="font-size: 0.7rem;">MASTER DATA</small>
 
-    <a class="nav-link {{ request()->routeIs('vehicles.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('vehicles.*') ? 'active' : '' }}" href="{{ route('vehicles.index') }}">
       <span class="nav-icon"><i class="bi bi-truck" aria-hidden="true"></i></span>
       <span class="nav-text">Data Kendaraan</span>
     </a>
 
-    <a class="nav-link {{ request()->routeIs('drivers.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('drivers.*') ? 'active' : '' }}" href="{{ route('drivers.index') }}">
       <span class="nav-icon"><i class="bi bi-person-badge" aria-hidden="true"></i></span>
       <span class="nav-text">Data Driver</span>
     </a>
 
-    <a class="nav-link {{ request()->routeIs('rental-companies.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('rental-companies.*') ? 'active' : '' }}" href="{{ route('rental-companies.index') }}">
       <span class="nav-icon"><i class="bi bi-building" aria-hidden="true"></i></span>
       <span class="nav-text">Perusahaan Sewa</span>
     </a>
 
-    <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('locations.*') ? 'active' : '' }}" href="{{ route('locations.index') }}">
       <span class="nav-icon"><i class="bi bi-geo-alt" aria-hidden="true"></i></span>
       <span class="nav-text">Lokasi & Region</span>
     </a>
