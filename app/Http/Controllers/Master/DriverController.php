@@ -19,6 +19,7 @@ class DriverController extends Controller
     {
         if ($request->ajax()) {
             $query = Driver::query();
+            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
@@ -47,12 +48,17 @@ class DriverController extends Controller
                 ->addColumn('status_badge', function ($driver) {
                     if ($driver->status === 'available') {
                         return '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i> Tersedia</span>';
+                    } elseif ($driver->status === 'reserved') {
+                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Dipesan (Reserved)</span>';
                     } elseif ($driver->status === 'on_trip') {
-                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-truck me-1"></i> Sedang Bertugas</span>';
+                        return '<span class="badge text-bg-primary"><i class="bi bi-truck me-1"></i> Sedang Bertugas</span>';
                     }
                     return '<span class="badge text-bg-secondary"><i class="bi bi-person-x me-1"></i> Libur / Nonaktif</span>';
                 })
-                ->addColumn('action', function ($driver) {
+                ->addColumn('action', function ($driver) use ($isAdmin) {
+                    if (!$isAdmin) {
+                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
+                    }
                     return '
                         <div class="btn-group btn-group-sm">
                             <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $driver->id . '" title="Edit Driver">
@@ -72,19 +78,26 @@ class DriverController extends Controller
     }
 
     /**
-     * Store a newly created driver in storage.
+     * Store a newly created driver in storage (Admin Only).
      */
     public function store(Request $request)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menambah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'license_number' => ['nullable', 'string', 'max:100'],
-            'status' => ['required', Rule::in(['available', 'on_trip', 'off'])],
         ], [
             'name.required' => 'Nama driver wajib diisi.',
-            'status.required' => 'Status driver wajib dipilih.',
         ]);
+
+        $validated['status'] = 'available';
 
         $driver = Driver::create($validated);
 
@@ -118,18 +131,23 @@ class DriverController extends Controller
     }
 
     /**
-     * Update the specified driver in storage.
+     * Update the specified driver in storage (Admin Only).
      */
     public function update(Request $request, Driver $driver)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat mengubah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'license_number' => ['nullable', 'string', 'max:100'],
-            'status' => ['required', Rule::in(['available', 'on_trip', 'off'])],
         ], [
             'name.required' => 'Nama driver wajib diisi.',
-            'status.required' => 'Status driver wajib dipilih.',
         ]);
 
         $driver->update($validated);
@@ -156,10 +174,24 @@ class DriverController extends Controller
     }
 
     /**
-     * Remove the specified driver from storage.
+     * Remove the specified driver from storage (Admin Only).
      */
     public function destroy(Request $request, Driver $driver)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menghapus data master.',
+            ], 403);
+        }
+
+        if ($driver->status !== 'available') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus! Driver "' . $driver->name . '" tidak dapat dihapus karena berstatus ' . strtoupper($driver->status) . ' (hanya driver berstatus Tersedia yang dapat dihapus).',
+            ], 422);
+        }
+
         $driverName = $driver->name;
         $driverId = $driver->id;
 

@@ -15,12 +15,13 @@ use Yajra\DataTables\Facades\DataTables;
 class VehicleController extends Controller
 {
     /**
-     * Display a listing of vehicles (Using Yajra DataTables Server-Side Processing).
+     * Display a listing of vehicles (Supports Yajra DataTables Server-Side Processing).
      */
     public function index(Request $request)
     {
         if ($request->ajax()) {
             $query = Vehicle::with(['location', 'rentalCompany'])->select('vehicles.*');
+            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
@@ -56,12 +57,17 @@ class VehicleController extends Controller
                 ->addColumn('status_badge', function ($vehicle) {
                     if ($vehicle->status === 'available') {
                         return '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i> Tersedia</span>';
+                    } elseif ($vehicle->status === 'reserved') {
+                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Dipesan (Reserved)</span>';
                     } elseif ($vehicle->status === 'in_use') {
-                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-arrow-repeat me-1"></i> Sedang Digunakan</span>';
+                        return '<span class="badge text-bg-primary"><i class="bi bi-arrow-repeat me-1"></i> Sedang Digunakan</span>';
                     }
                     return '<span class="badge text-bg-danger"><i class="bi bi-tools me-1"></i> Dalam Service</span>';
                 })
-                ->addColumn('action', function ($vehicle) {
+                ->addColumn('action', function ($vehicle) use ($isAdmin) {
+                    if (!$isAdmin) {
+                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
+                    }
                     return '
                         <div class="btn-group btn-group-sm">
                             <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $vehicle->id . '" title="Edit Kendaraan">
@@ -95,10 +101,17 @@ class VehicleController extends Controller
     }
 
     /**
-     * Store a newly created vehicle in storage.
+     * Store a newly created vehicle in storage (Admin Only).
      */
     public function store(Request $request)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menambah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'license_plate' => ['required', 'string', 'max:50', 'unique:vehicles,license_plate'],
@@ -106,7 +119,6 @@ class VehicleController extends Controller
             'ownership' => ['required', Rule::in(['company', 'rented'])],
             'rental_company_id' => ['nullable', 'required_if:ownership,rented', 'exists:rental_companies,id'],
             'location_id' => ['required', 'exists:locations,id'],
-            'status' => ['required', Rule::in(['available', 'in_use', 'service'])],
             'fuel_type' => ['required', 'string', 'max:50'],
         ], [
             'name.required' => 'Nama kendaraan wajib diisi.',
@@ -116,9 +128,10 @@ class VehicleController extends Controller
             'ownership.required' => 'Kepemilikan kendaraan wajib dipilih.',
             'rental_company_id.required_if' => 'Perusahaan sewa wajib dipilih jika kendaraan berstatus sewa.',
             'location_id.required' => 'Lokasi pool kendaraan wajib dipilih.',
-            'status.required' => 'Status kendaraan wajib dipilih.',
             'fuel_type.required' => 'Jenis BBM wajib diisi.',
         ]);
+
+        $validated['status'] = 'available';
 
         if ($validated['ownership'] === 'company') {
             $validated['rental_company_id'] = null;
@@ -156,10 +169,17 @@ class VehicleController extends Controller
     }
 
     /**
-     * Update the specified vehicle in storage.
+     * Update the specified vehicle in storage (Admin Only).
      */
     public function update(Request $request, Vehicle $vehicle)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat mengubah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'license_plate' => ['required', 'string', 'max:50', Rule::unique('vehicles', 'license_plate')->ignore($vehicle->id)],
@@ -167,17 +187,15 @@ class VehicleController extends Controller
             'ownership' => ['required', Rule::in(['company', 'rented'])],
             'rental_company_id' => ['nullable', 'required_if:ownership,rented', 'exists:rental_companies,id'],
             'location_id' => ['required', 'exists:locations,id'],
-            'status' => ['required', Rule::in(['available', 'in_use', 'service'])],
             'fuel_type' => ['required', 'string', 'max:50'],
         ], [
             'name.required' => 'Nama kendaraan wajib diisi.',
             'license_plate.required' => 'Plat nomor wajib diisi.',
-            'license_plate.unique' => 'Plat nomor telah digunakan kendaraan lain.',
+            'license_plate.unique' => 'Plat nomor sudah terdaftar pada sistem.',
             'type.required' => 'Jenis kendaraan wajib dipilih.',
             'ownership.required' => 'Kepemilikan kendaraan wajib dipilih.',
             'rental_company_id.required_if' => 'Perusahaan sewa wajib dipilih jika kendaraan berstatus sewa.',
             'location_id.required' => 'Lokasi pool kendaraan wajib dipilih.',
-            'status.required' => 'Status kendaraan wajib dipilih.',
             'fuel_type.required' => 'Jenis BBM wajib diisi.',
         ]);
 
@@ -209,11 +227,26 @@ class VehicleController extends Controller
     }
 
     /**
-     * Remove the specified vehicle from storage.
+     * Remove the specified vehicle from storage (Admin Only).
      */
     public function destroy(Request $request, Vehicle $vehicle)
     {
-        $vehicleName = $vehicle->name . ' (' . $vehicle->license_plate . ')';
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menghapus data master.',
+            ], 403);
+        }
+
+        if ($vehicle->status !== 'available') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus! Kendaraan "' . $vehicle->name . '" (' . $vehicle->license_plate . ') tidak dapat dihapus karena berstatus ' . strtoupper($vehicle->status) . ' (hanya armada berstatus Tersedia yang dapat dihapus).',
+            ], 422);
+        }
+
+        $vehicleName = $vehicle->name;
+        $vehiclePlate = $vehicle->license_plate;
         $vehicleId = $vehicle->id;
 
         $vehicle->delete();
@@ -223,7 +256,7 @@ class VehicleController extends Controller
             'action' => 'DELETE_VEHICLE',
             'entity_type' => 'Vehicle',
             'entity_id' => $vehicleId,
-            'description' => 'Menghapus data kendaraan: ' . $vehicleName,
+            'description' => 'Menghapus data kendaraan: ' . $vehicleName . ' (' . $vehiclePlate . ')',
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);

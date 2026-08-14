@@ -32,7 +32,7 @@ class UserSeeder extends Seeder
                 'phone' => '081234567890',
             ],
             [
-                'name' => 'Budi Santoso (Supervisor Ops)',
+                'name' => 'Budi Santoso',
                 'email' => 'spv@fleet.com',
                 'password' => Hash::make('password123'),
                 'role_id' => $roleSpv?->id,
@@ -40,7 +40,7 @@ class UserSeeder extends Seeder
                 'phone' => '081298765432',
             ],
             [
-                'name' => 'Siti Aminah (Manager Tambang)',
+                'name' => 'Siti Aminah',
                 'email' => 'manager@fleet.com',
                 'password' => Hash::make('password123'),
                 'role_id' => $roleManager?->id,

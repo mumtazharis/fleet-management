@@ -17,7 +17,7 @@
     </a>
 
     <!-- Pemesanan Kendaraan -->
-    <a class="nav-link {{ request()->routeIs('bookings.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('bookings.*') ? 'active' : '' }}" href="{{ route('bookings.index') }}">
       <span class="nav-icon"><i class="bi bi-journal-check" aria-hidden="true"></i></span>
       <span class="nav-text">Pemesanan Kendaraan</span>
     </a>
@@ -78,7 +78,7 @@
   </nav>
 
   <!-- Sidebar User Badge dengan Bootstrap Icon -->
-  <div class="sidebar-user d-flex align-items-center gap-2">
+  {{-- <div class="sidebar-user d-flex align-items-center gap-2">
     <div class="avatar-icon bg-warning text-dark rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px;">
       <i class="bi bi-person-fill fs-5"></i>
     </div>
@@ -86,10 +86,10 @@
       <strong class="d-block text-truncate" style="max-width: 130px;">{{ Auth::user()->name ?? 'User Fleet' }}</strong>
       <small class="badge bg-warning text-dark">{{ Auth::user()->role?->label ?? 'Staff' }}</small>
     </div>
-  </div>
+  </div> --}}
 
-  <div class="sidebar-footer">
+  {{-- <div class="sidebar-footer">
     <span class="status-dot"></span>
     <span class="sidebar-footer-text">Operational System Active</span>
-  </div>
+  </div> --}}
 </aside>

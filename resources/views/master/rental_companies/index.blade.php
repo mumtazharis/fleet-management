@@ -14,9 +14,11 @@
     </div>
   </div>
 
+  @if(Auth::user()->role?->name === 'admin')
   <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateRentalCompany">
     <i class="bi bi-plus-lg me-1"></i> Tambah Perusahaan Sewa
   </button>
+  @endif
 </div>
 
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
@@ -30,7 +32,9 @@
           <th>Penanggung Jawab (PIC)</th>
           <th>Nomor Telepon</th>
           <th>Alamat Perusahaan</th>
-          <th class="text-center">Aksi</th>
+          @if(Auth::user()->role?->name === 'admin')
+            <th class="text-center">Aksi</th>
+          @endif
         </tr>
       </thead>
       <tbody>
@@ -102,19 +106,26 @@
     const modalEl = document.getElementById('rentalCompanyModal');
     const rentalCompanyModal = new bootstrap.Modal(modalEl);
 
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
+
+    const rentalCompanyColumns = [
+      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      { data: 'company_name', name: 'name' },
+      { data: 'contact', name: 'contact_person' },
+      { data: 'phone_formatted', name: 'phone' },
+      { data: 'address_formatted', name: 'address' }
+    ];
+
+    if (isAdmin) {
+      rentalCompanyColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+    }
+
     // 1. Inisialisasi DataTables Server-Side Processing
     const tableRentalCompanies = $('#tableRentalCompanies').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('rental-companies.index') }}",
-      columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'company_name', name: 'name' },
-        { data: 'contact', name: 'contact_person' },
-        { data: 'phone_formatted', name: 'phone' },
-        { data: 'address_formatted', name: 'address' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
-      ],
+      columns: rentalCompanyColumns,
       language: {
         search: "Cari:",
         lengthMenu: "Tampilkan _MENU_ data",

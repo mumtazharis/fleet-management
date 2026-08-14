@@ -14,9 +14,11 @@
     </div>
   </div>
 
+  @if(Auth::user()->role?->name === 'admin')
   <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateVehicle">
     <i class="bi bi-plus-lg me-1"></i> Tambah Kendaraan
   </button>
+  @endif
 </div>
 
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
@@ -32,7 +34,9 @@
           <th>Lokasi Pool</th>
           <th>Jenis BBM</th>
           <th>Status</th>
-          <th class="text-center">Aksi</th>
+          @if(Auth::user()->role?->name === 'admin')
+            <th class="text-center">Aksi</th>
+          @endif
         </tr>
       </thead>
       <tbody>
@@ -130,15 +134,6 @@
               <div class="invalid-feedback" id="err-location_id">Pilih lokasi pool kendaraan.</div>
             </div>
 
-            <!-- Status Operasional -->
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-semibold" for="selectStatus">Status Operasional <span class="text-danger">*</span></label>
-              <select class="form-select" id="selectStatus" name="status" required>
-                <option value="available" selected>Tersedia (Available)</option>
-                <option value="in_use">Sedang Digunakan (In Use)</option>
-                <option value="service">Dalam Service (Under Maintenance)</option>
-              </select>
-            </div>
           </div>
         </div>
 
@@ -160,21 +155,28 @@
     const modalEl = document.getElementById('vehicleModal');
     const vehicleModal = new bootstrap.Modal(modalEl);
 
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
+
+    const vehicleColumns = [
+      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      { data: 'name_plate', name: 'name' },
+      { data: 'type_badge', name: 'type' },
+      { data: 'ownership_badge', name: 'ownership' },
+      { data: 'location_name', name: 'location.name' },
+      { data: 'fuel_type', name: 'fuel_type' },
+      { data: 'status_badge', name: 'status' }
+    ];
+
+    if (isAdmin) {
+      vehicleColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+    }
+
     // 1. Inisialisasi DataTables Server-Side Processing
     const tableVehicles = $('#tableVehicles').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('vehicles.index') }}",
-      columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'name_plate', name: 'name' },
-        { data: 'type_badge', name: 'type' },
-        { data: 'ownership_badge', name: 'ownership' },
-        { data: 'location_name', name: 'location.name' },
-        { data: 'fuel_type', name: 'fuel_type' },
-        { data: 'status_badge', name: 'status' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
-      ],
+      columns: vehicleColumns,
       language: {
         search: "Cari:",
         lengthMenu: "Tampilkan _MENU_ data",
@@ -297,7 +299,6 @@
           }
 
           $('#selectLocation').val(data.location_id);
-          $('#selectStatus').val(data.status);
 
           vehicleModal.show();
         },

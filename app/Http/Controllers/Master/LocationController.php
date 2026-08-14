@@ -20,22 +20,18 @@ class LocationController extends Controller
     {
         if ($request->ajax()) {
             $query = Location::with('region')->withCount('vehicles');
+            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
                 ->addColumn('location_name', function ($loc) {
                     $icon = 'bi-geo-alt';
-                    $badgeClass = 'text-bg-light';
-
                     if ($loc->type === 'head_office') {
                         $icon = 'bi-building-fill-gear';
-                        $badgeClass = 'text-bg-primary';
                     } elseif ($loc->type === 'branch_office') {
                         $icon = 'bi-building-fill';
-                        $badgeClass = 'text-bg-info';
                     } elseif ($loc->type === 'mine_site') {
                         $icon = 'bi-funnel-fill';
-                        $badgeClass = 'text-bg-warning text-dark';
                     }
 
                     return '
@@ -70,7 +66,10 @@ class LocationController extends Controller
                     }
                     return '<small class="text-secondary">' . e($loc->address) . '</small>';
                 })
-                ->addColumn('action', function ($loc) {
+                ->addColumn('action', function ($loc) use ($isAdmin) {
+                    if (!$isAdmin) {
+                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
+                    }
                     return '
                         <div class="btn-group btn-group-sm">
                             <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $loc->id . '" title="Edit Lokasi">
@@ -97,10 +96,17 @@ class LocationController extends Controller
     }
 
     /**
-     * Store a newly created location in storage.
+     * Store a newly created location in storage (Admin Only).
      */
     public function store(Request $request)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menambah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'region_id' => ['nullable', 'exists:regions,id'],
@@ -143,10 +149,17 @@ class LocationController extends Controller
     }
 
     /**
-     * Update the specified location in storage.
+     * Update the specified location in storage (Admin Only).
      */
     public function update(Request $request, Location $location)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat mengubah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'region_id' => ['nullable', 'exists:regions,id'],
@@ -181,10 +194,17 @@ class LocationController extends Controller
     }
 
     /**
-     * Remove the specified location from storage.
+     * Remove the specified location from storage (Admin Only).
      */
     public function destroy(Request $request, Location $location)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menghapus data master.',
+            ], 403);
+        }
+
         $locationName = $location->name;
         $locationId = $location->id;
 

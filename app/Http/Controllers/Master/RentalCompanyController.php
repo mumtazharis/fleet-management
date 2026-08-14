@@ -18,6 +18,7 @@ class RentalCompanyController extends Controller
     {
         if ($request->ajax()) {
             $query = RentalCompany::withCount('vehicles');
+            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
@@ -52,7 +53,10 @@ class RentalCompanyController extends Controller
                     }
                     return '<small class="text-secondary">' . e($rc->address) . '</small>';
                 })
-                ->addColumn('action', function ($rc) {
+                ->addColumn('action', function ($rc) use ($isAdmin) {
+                    if (!$isAdmin) {
+                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
+                    }
                     return '
                         <div class="btn-group btn-group-sm">
                             <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $rc->id . '" title="Edit Perusahaan Sewa">
@@ -72,10 +76,17 @@ class RentalCompanyController extends Controller
     }
 
     /**
-     * Store a newly created rental company in storage.
+     * Store a newly created rental company in storage (Admin Only).
      */
     public function store(Request $request)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menambah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
@@ -117,10 +128,17 @@ class RentalCompanyController extends Controller
     }
 
     /**
-     * Update the specified rental company in storage.
+     * Update the specified rental company in storage (Admin Only).
      */
     public function update(Request $request, RentalCompany $rentalCompany)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat mengubah data master.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'contact_person' => ['nullable', 'string', 'max:255'],
@@ -154,10 +172,17 @@ class RentalCompanyController extends Controller
     }
 
     /**
-     * Remove the specified rental company from storage.
+     * Remove the specified rental company from storage (Admin Only).
      */
     public function destroy(Request $request, RentalCompany $rentalCompany)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menghapus data master.',
+            ], 403);
+        }
+
         $companyName = $rentalCompany->name;
         $companyId = $rentalCompany->id;
 

@@ -14,9 +14,11 @@
     </div>
   </div>
 
+  @if(Auth::user()->role?->name === 'admin')
   <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateDriver">
     <i class="bi bi-plus-lg me-1"></i> Tambah Driver
   </button>
+  @endif
 </div>
 
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
@@ -30,7 +32,9 @@
           <th>Nomor Telepon</th>
           <th>Nomor SIM</th>
           <th>Status Operasional</th>
-          <th class="text-center">Aksi</th>
+          @if(Auth::user()->role?->name === 'admin')
+            <th class="text-center">Aksi</th>
+          @endif
         </tr>
       </thead>
       <tbody>
@@ -78,16 +82,6 @@
               <div class="invalid-feedback" id="err-license_number">Nomor SIM tidak valid.</div>
             </div>
 
-            <!-- Status Operasional -->
-            <div class="col-12">
-              <label class="form-label fw-semibold" for="selectStatus">Status Operasional <span class="text-danger">*</span></label>
-              <select class="form-select" id="selectStatus" name="status" required>
-                <option value="available" selected>Tersedia (Available)</option>
-                <option value="on_trip">Sedang Bertugas (On Trip)</option>
-                <option value="off">Libur / Nonaktif (Off)</option>
-              </select>
-              <div class="invalid-feedback" id="err-status">Pilih status operasional.</div>
-            </div>
           </div>
         </div>
 
@@ -109,19 +103,26 @@
     const modalEl = document.getElementById('driverModal');
     const driverModal = new bootstrap.Modal(modalEl);
 
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
+
+    const driverColumns = [
+      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      { data: 'driver_name', name: 'name' },
+      { data: 'phone_formatted', name: 'phone' },
+      { data: 'license_badge', name: 'license_number' },
+      { data: 'status_badge', name: 'status' }
+    ];
+
+    if (isAdmin) {
+      driverColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+    }
+
     // 1. Inisialisasi DataTables Server-Side Processing
     const tableDrivers = $('#tableDrivers').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('drivers.index') }}",
-      columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'driver_name', name: 'name' },
-        { data: 'phone_formatted', name: 'phone' },
-        { data: 'license_badge', name: 'license_number' },
-        { data: 'status_badge', name: 'status' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
-      ],
+      columns: driverColumns,
       language: {
         search: "Cari:",
         lengthMenu: "Tampilkan _MENU_ data",
@@ -221,7 +222,6 @@
           $('#inputName').val(data.name);
           $('#inputPhone').val(data.phone);
           $('#inputLicenseNumber').val(data.license_number);
-          $('#selectStatus').val(data.status);
 
           driverModal.show();
         },

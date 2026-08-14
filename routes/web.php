@@ -6,6 +6,7 @@ use App\Http\Controllers\Master\DriverController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\RentalCompanyController;
 use App\Http\Controllers\Master\VehicleController;
+use App\Http\Controllers\Transaction\VehicleBookingController;
 use Illuminate\Support\Facades\Route;
 
 // Redirect root to dashboard (if auth) or login (if guest)
@@ -29,4 +30,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('drivers', DriverController::class);
     Route::resource('rental-companies', RentalCompanyController::class);
     Route::resource('locations', LocationController::class);
+
+    // Transaction Routes (Pemesanan Kendaraan)
+    Route::resource('bookings', VehicleBookingController::class);
 });

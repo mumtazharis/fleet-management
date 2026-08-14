@@ -14,9 +14,9 @@
 
     <div class="navbar-actions ms-auto d-flex align-items-center gap-2">
       <!-- Theme Toggle -->
-      <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+      {{-- <button class="icon-button theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
         <i class="bi bi-moon-stars" data-theme-icon aria-hidden="true"></i>
-      </button>
+      </button> --}}
 
       <!-- User Menu -->
       <div class="dropdown">
@@ -29,8 +29,11 @@
         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
           <li>
             <div class="px-3 py-2 border-bottom">
-              <strong class="d-block">{{ Auth::user()->name ?? 'User' }}</strong>
-              <small class="text-muted">{{ Auth::user()->email ?? '' }}</small>
+              <strong class="d-block text-dark">{{ Auth::user()->name ?? 'User' }}</strong>
+              <div class="mt-1">
+                <span class="badge text-bg-warning text-dark"><i class="bi bi-shield-lock me-1"></i>{{ Auth::user()->role?->label ?? 'User' }}</span>
+              </div>
+              <small class="text-muted d-block mt-1">{{ Auth::user()->email ?? '' }}</small>
             </div>
           </li>
           <li>

@@ -14,9 +14,11 @@
     </div>
   </div>
 
+  @if(Auth::user()->role?->name === 'admin')
   <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateLocation">
     <i class="bi bi-plus-lg me-1"></i> Tambah Lokasi
   </button>
+  @endif
 </div>
 
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
@@ -30,7 +32,9 @@
           <th>Wilayah / Region</th>
           <th>Tipe Lokasi</th>
           <th>Alamat Lengkap</th>
-          <th class="text-center">Aksi</th>
+          @if(Auth::user()->role?->name === 'admin')
+            <th class="text-center">Aksi</th>
+          @endif
         </tr>
       </thead>
       <tbody>
@@ -112,19 +116,26 @@
     const modalEl = document.getElementById('locationModal');
     const locationModal = new bootstrap.Modal(modalEl);
 
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
+
+    const locationColumns = [
+      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      { data: 'location_name', name: 'name' },
+      { data: 'region_name', name: 'region.name' },
+      { data: 'type_badge', name: 'type' },
+      { data: 'address_formatted', name: 'address' }
+    ];
+
+    if (isAdmin) {
+      locationColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+    }
+
     // 1. Inisialisasi DataTables Server-Side Processing
     const tableLocations = $('#tableLocations').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('locations.index') }}",
-      columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'location_name', name: 'name' },
-        { data: 'region_name', name: 'region.name' },
-        { data: 'type_badge', name: 'type' },
-        { data: 'address_formatted', name: 'address' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
-      ],
+      columns: locationColumns,
       language: {
         search: "Cari:",
         lengthMenu: "Tampilkan _MENU_ data",

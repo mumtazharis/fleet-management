@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('phone')->nullable();
             $table->string('license_number')->nullable(); // SIM A / B II Umum
-            $table->enum('status', ['available', 'on_trip', 'off'])->default('available');
+            $table->enum('status', ['available', 'reserved', 'on_trip', 'off'])->default('available');
             $table->timestamps();
         });
     }

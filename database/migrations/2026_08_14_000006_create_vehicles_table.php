@@ -19,7 +19,7 @@ return new class extends Migration
             $table->enum('ownership', ['company', 'rented'])->default('company'); // Milik perusahaan / sewa
             $table->foreignId('rental_company_id')->nullable()->constrained('rental_companies')->nullOnDelete();
             $table->foreignId('location_id')->nullable()->constrained('locations')->nullOnDelete();
-            $table->enum('status', ['available', 'in_use', 'service'])->default('available');
+            $table->enum('status', ['available', 'reserved', 'in_use', 'service'])->default('available');
             $table->string('fuel_type')->default('Solar'); // Jenis BBM: Solar, Dexlite, Pertalite, dll.
             $table->timestamps();
         });
