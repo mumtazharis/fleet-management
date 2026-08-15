@@ -41,14 +41,6 @@
         </span>
       </a>
 
-      <div class="p-3 mb-4 rounded-3 brand-mining-badge d-flex align-items-center gap-3">
-        <i class="bi bi-geo-alt-fill fs-3 text-warning"></i>
-        <small class="lh-sm">
-          <strong>PT Tambang Nikel Utama</strong><br>
-          Region Operasional: 1 HQ, 1 Cabang & 6 Lokasi Tambang
-        </small>
-      </div>
-
       <!-- Notification Alerts -->
       @if (session('success'))
         <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -75,7 +67,6 @@
         @csrf
 
         <div class="mb-4">
-          <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-shield-lock me-1"></i> Autentikasi Pengguna</p>
           <h1 class="h3 mb-1">Masuk ke Sistem</h1>
           <p class="text-muted mb-0">Silakan masukkan email dan password akun Anda.</p>
         </div>
@@ -110,10 +101,10 @@
       
       <div class="auth-footer mt-4 pt-3 border-top text-center text-muted small">
         <i class="bi bi-info-circle me-1"></i> Demo Akun Testing:
-        <div class="mt-1">
-          <span class="badge text-bg-dark">admin@fleet.com</span>
-          <span class="badge text-bg-dark">spv@fleet.com</span>
-          <span class="badge text-bg-dark">manager@fleet.com</span>
+        <div class="mt-1 d-flex gap-1">
+          <span class="badge text-dark">admin@fleet.com</span>
+          <span class="badge text-dark">spv@fleet.com</span>
+          <span class="badge text-dark">manager@fleet.com</span>
         </div>
         <small class="d-block mt-1 text-muted">Password: <code>password123</code></small>
       </div>
