@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Monitoring;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Yajra\DataTables\Facades\DataTables;
 
 class ActivityLogController extends Controller
@@ -14,6 +15,9 @@ class ActivityLogController extends Controller
      */
     public function index(Request $request)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            abort(403, 'Akses ditolak. Log aktivitas sistem hanya dapat diakses oleh Administrator.');
+        }
         if ($request->ajax()) {
             $query = ActivityLog::with(['user.role'])->select('activity_logs.*');
 
@@ -40,6 +44,10 @@ class ActivityLogController extends Controller
      */
     public function show(ActivityLog $activityLog)
     {
+        if (Auth::user()->role?->name !== 'admin') {
+            abort(403, 'Akses ditolak. Log aktivitas sistem hanya dapat diakses oleh Administrator.');
+        }
+
         $activityLog->load(['user.role']);
 
         return response()->json($activityLog);

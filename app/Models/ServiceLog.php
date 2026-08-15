@@ -18,6 +18,8 @@ class ServiceLog extends Model
         'status',
         'service_date',
         'next_service_date',
+        'start_date',
+        'end_date',
     ];
 
     protected function casts(): array
@@ -25,6 +27,8 @@ class ServiceLog extends Model
         return [
             'service_date' => 'date',
             'next_service_date' => 'date',
+            'start_date' => 'datetime',
+            'end_date' => 'datetime',
         ];
     }
 

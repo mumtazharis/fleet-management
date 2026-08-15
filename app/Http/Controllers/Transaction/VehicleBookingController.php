@@ -8,9 +8,11 @@ use App\Models\ActivityLog;
 use App\Models\BookingApproval;
 use App\Models\Driver;
 use App\Models\Location;
+use App\Models\ServiceLog;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleBooking;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -56,16 +58,14 @@ class VehicleBookingController extends Controller
                 ->make(true);
         }
 
-        // Available Vehicles Query: Status must be 'available'
-        $availableVehicles = Vehicle::where('status', 'available')
+        // Available Vehicles Query: Not in permanent maintenance
+        $availableVehicles = Vehicle::where('status', '!=', 'maintenance')
             ->with('location')
             ->orderBy('name')
             ->get();
 
-        // Available Drivers Query: Status must be 'available'
-        $availableDrivers = Driver::where('status', 'available')
-            ->orderBy('name')
-            ->get();
+        // Available Drivers Query
+        $availableDrivers = Driver::orderBy('name')->get();
 
         // Locations
         $locations = Location::orderBy('name')->get();
@@ -86,13 +86,63 @@ class VehicleBookingController extends Controller
     }
 
     /**
-     * Get dynamic options for booking forms (AJAX).
+     * Get dynamic options for booking forms with date-range conflict filter (AJAX).
      */
-    public function options()
+    public function options(Request $request)
     {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+
+        $vehiclesQuery = Vehicle::where('status', '!=', 'maintenance')->with('location')->orderBy('name');
+        $driversQuery = Driver::orderBy('name');
+
+        if ($startDate && $endDate) {
+            // Find vehicles with overlapping active bookings
+            $bookedVehicleIds = VehicleBooking::whereIn('status', ['pending', 'approved', 'in_progress'])
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<', $endDate)
+                      ->where('end_date', '>', $startDate);
+                })
+                ->pluck('vehicle_id')
+                ->toArray();
+
+            // Find vehicles with overlapping active services
+            $servicedVehicleIds = ServiceLog::where('status', 'in_progress')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where(function ($sub) use ($startDate, $endDate) {
+                        $sub->whereNotNull('start_date')
+                            ->whereNotNull('end_date')
+                            ->where('start_date', '<', $endDate)
+                            ->where('end_date', '>', $startDate);
+                    })->orWhere(function ($sub) use ($startDate, $endDate) {
+                        $sub->whereNull('start_date')
+                            ->whereBetween('service_date', [
+                                Carbon::parse($startDate)->toDateString(),
+                                Carbon::parse($endDate)->toDateString()
+                            ]);
+                    });
+                })
+                ->pluck('vehicle_id')
+                ->toArray();
+
+            $unavailableVehicleIds = array_unique(array_merge($bookedVehicleIds, $servicedVehicleIds));
+            $vehiclesQuery->whereNotIn('id', $unavailableVehicleIds);
+
+            // Find drivers with overlapping active bookings
+            $bookedDriverIds = VehicleBooking::whereIn('status', ['pending', 'approved', 'in_progress'])
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<', $endDate)
+                      ->where('end_date', '>', $startDate);
+                })
+                ->pluck('driver_id')
+                ->toArray();
+
+            $driversQuery->whereNotIn('id', $bookedDriverIds);
+        }
+
         return response()->json([
-            'available_vehicles' => Vehicle::where('status', 'available')->with('location')->orderBy('name')->get(),
-            'available_drivers' => Driver::where('status', 'available')->orderBy('name')->get(),
+            'available_vehicles' => $vehiclesQuery->get(),
+            'available_drivers' => $driversQuery->get(),
             'locations' => Location::orderBy('name')->get(),
             'approvers_l1' => User::with('role')->whereHas('role', function ($q) {
                 $q->where('level', 1)->orWhere('name', 'supervisor');
@@ -104,7 +154,7 @@ class VehicleBookingController extends Controller
     }
 
     /**
-     * Store a newly created vehicle booking (Admin Only).
+     * Store a newly created vehicle booking (Admin Only) with advanced date-range conflict validation.
      */
     public function store(Request $request)
     {
@@ -118,25 +168,127 @@ class VehicleBookingController extends Controller
         $validated = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')->whereNull('deleted_at')],
             'driver_id' => ['required', Rule::exists('drivers', 'id')->whereNull('deleted_at')],
-            'start_location_id' => ['required', Rule::exists('locations', 'id')->whereNull('deleted_at')],
-            'destination_location_id' => ['required', Rule::exists('locations', 'id')->whereNull('deleted_at')],
+            'start_location_id' => ['required'],
+            'start_address' => ['nullable', 'string', 'max:255', 'required_if:start_location_id,other'],
+            'destination_location_id' => ['required'],
+            'destination_address' => ['nullable', 'string', 'max:255', 'required_if:destination_location_id,other'],
             'start_date' => ['required', 'date'],
-            'end_date' => ['required', 'date', 'after_or_equal:start_date'],
+            'end_date' => ['required', 'date', 'after:start_date'],
             'approver_1_id' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at')],
             'approver_2_id' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at'), 'different:approver_1_id'],
             'purpose' => ['required', 'string'],
         ], [
-            'vehicle_id.required' => 'Pilih kendaraan yang tersedia.',
-            'driver_id.required' => 'Pilih driver yang tersedia.',
+            'vehicle_id.required' => 'Pilih kendaraan operasional.',
+            'driver_id.required' => 'Pilih driver operasional.',
             'start_location_id.required' => 'Pilih lokasi penjemputan/asal.',
+            'start_address.required_if' => 'Nama / alamat lokasi penjemputan lainnya wajib diisi.',
             'destination_location_id.required' => 'Pilih lokasi tujuan.',
-            'start_date.required' => 'Tanggal mulai wajib diisi.',
-            'end_date.required' => 'Tanggal selesai wajib diisi.',
+            'destination_address.required_if' => 'Nama / alamat lokasi tujuan lainnya wajib diisi.',
+            'start_date.required' => 'Tanggal & waktu mulai wajib diisi.',
+            'end_date.required' => 'Tanggal & waktu selesai wajib diisi.',
+            'end_date.after' => 'Tanggal & waktu selesai harus setelah tanggal mulai.',
             'approver_1_id.required' => 'Pilih Penyetuju Level 1 (Atasan L1 dengan Role Level 1 / SPV).',
             'approver_2_id.required' => 'Pilih Penyetuju Level 2 (Atasan L2 dengan Role Level 2 / Manager).',
             'approver_2_id.different' => 'Penyetuju Level 2 harus berbeda dari Penyetuju Level 1.',
             'purpose.required' => 'Keperluan pemakaian kendaraan wajib diisi.',
         ]);
+
+        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
+        $driver = Driver::findOrFail($validated['driver_id']);
+
+        // Check if vehicle is in maintenance
+        if ($vehicle->status === 'maintenance') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kendaraan "' . $vehicle->name . '" saat ini berstatus MAINTENANCE (Perawatan Mesin) dan tidak dapat dipesan.',
+            ], 422);
+        }
+
+        // 1. Check Date Range Conflict: Vehicle vs other active Bookings
+        $vehicleBookingConflict = VehicleBooking::where('vehicle_id', $validated['vehicle_id'])
+            ->whereIn('status', ['pending', 'approved', 'in_progress'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_date', '<', $validated['end_date'])
+                  ->where('end_date', '>', $validated['start_date']);
+            })->first();
+
+        if ($vehicleBookingConflict) {
+            $cStart = Carbon::parse($vehicleBookingConflict->start_date)->format('d/m/Y H:i');
+            $cEnd = Carbon::parse($vehicleBookingConflict->end_date)->format('d/m/Y H:i');
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" sudah memiliki jadwal pemesanan (' . $vehicleBookingConflict->booking_code . ') pada rentang waktu ' . $cStart . ' s/d ' . $cEnd . '.',
+            ], 422);
+        }
+
+        // 2. Check Date Range Conflict: Vehicle vs active Service Logs
+        $vehicleServiceConflict = ServiceLog::where('vehicle_id', $validated['vehicle_id'])
+            ->where('status', 'in_progress')
+            ->where(function ($q) use ($validated) {
+                $q->where(function ($sub) use ($validated) {
+                    $sub->whereNotNull('start_date')
+                        ->whereNotNull('end_date')
+                        ->where('start_date', '<', $validated['end_date'])
+                        ->where('end_date', '>', $validated['start_date']);
+                })->orWhere(function ($sub) use ($validated) {
+                    $sub->whereNull('start_date')
+                        ->whereBetween('service_date', [
+                            Carbon::parse($validated['start_date'])->toDateString(),
+                            Carbon::parse($validated['end_date'])->toDateString()
+                        ]);
+                });
+            })->first();
+
+        if ($vehicleServiceConflict) {
+            $sStart = $vehicleServiceConflict->start_date ? Carbon::parse($vehicleServiceConflict->start_date)->format('d/m/Y H:i') : Carbon::parse($vehicleServiceConflict->service_date)->format('d/m/Y');
+            $sEnd = $vehicleServiceConflict->end_date ? Carbon::parse($vehicleServiceConflict->end_date)->format('d/m/Y H:i') : '-';
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" sedang dijadwalkan dalam masa servis (' . $vehicleServiceConflict->service_type . ') pada rentang waktu ' . $sStart . ($sEnd !== '-' ? ' s/d ' . $sEnd : '') . '.',
+            ], 422);
+        }
+
+        // 3. Check Date Range Conflict: Driver vs other active Bookings
+        $driverConflict = VehicleBooking::where('driver_id', $validated['driver_id'])
+            ->whereIn('status', ['pending', 'approved', 'in_progress'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_date', '<', $validated['end_date'])
+                  ->where('end_date', '>', $validated['start_date']);
+            })->first();
+
+        if ($driverConflict) {
+            $dStart = Carbon::parse($driverConflict->start_date)->format('d/m/Y H:i');
+            $dEnd = Carbon::parse($driverConflict->end_date)->format('d/m/Y H:i');
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Driver "' . $driver->name . '" sudah ditugaskan pada pemesanan lain (' . $driverConflict->booking_code . ') pada rentang waktu ' . $dStart . ' s/d ' . $dEnd . '.',
+            ], 422);
+        }
+
+        // Validate Location Exists if not 'other'
+        $startLocationId = null;
+        $startAddress = null;
+        if ($validated['start_location_id'] === 'other') {
+            $startAddress = $validated['start_address'];
+        } else {
+            $loc = Location::find($validated['start_location_id']);
+            if (!$loc) {
+                return response()->json(['success' => false, 'message' => 'Lokasi penjemputan tidak valid.'], 422);
+            }
+            $startLocationId = $loc->id;
+        }
+
+        $destinationLocationId = null;
+        $destinationAddress = null;
+        if ($validated['destination_location_id'] === 'other') {
+            $destinationAddress = $validated['destination_address'];
+        } else {
+            $loc = Location::find($validated['destination_location_id']);
+            if (!$loc) {
+                return response()->json(['success' => false, 'message' => 'Lokasi tujuan tidak valid.'], 422);
+            }
+            $destinationLocationId = $loc->id;
+        }
 
         // Validate Approver 1 Role Level (Level 1)
         $approver1 = User::with('role')->find($validated['approver_1_id']);
@@ -156,27 +308,9 @@ class VehicleBookingController extends Controller
             ], 422);
         }
 
-        // Double-check availability of vehicle
-        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
-        if ($vehicle->status !== 'available') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kendaraan "' . $vehicle->name . '" saat ini tidak tersedia (status: ' . strtoupper($vehicle->status) . ').',
-            ], 422);
-        }
-
-        // Double-check availability of driver
-        $driver = Driver::findOrFail($validated['driver_id']);
-        if ($driver->status !== 'available') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Driver "' . $driver->name . '" saat ini tidak tersedia (status: ' . strtoupper($driver->status) . ').',
-            ], 422);
-        }
-
         DB::beginTransaction();
         try {
-            // Generate unique booking code e.g. BOOK-20260814-001
+            // Generate unique booking code e.g. BOOK-20260816-001
             $count = VehicleBooking::withTrashed()->whereDate('created_at', now())->count() + 1;
             do {
                 $bookingCode = 'BOOK-' . now()->format('Ymd') . '-' . str_pad($count++, 3, '0', STR_PAD_LEFT);
@@ -187,17 +321,24 @@ class VehicleBookingController extends Controller
                 'user_id' => Auth::id(),
                 'vehicle_id' => $validated['vehicle_id'],
                 'driver_id' => $validated['driver_id'],
-                'start_location_id' => $validated['start_location_id'],
-                'destination_location_id' => $validated['destination_location_id'],
+                'start_location_id' => $startLocationId,
+                'destination_location_id' => $destinationLocationId,
+                'start_address' => $startAddress,
+                'destination_address' => $destinationAddress,
                 'start_date' => $validated['start_date'],
                 'end_date' => $validated['end_date'],
                 'purpose' => $validated['purpose'],
                 'status' => 'pending',
             ]);
 
-            // Automatically update Vehicle and Driver status to 'reserved'
-            $vehicle->update(['status' => 'reserved']);
-            $driver->update(['status' => 'reserved']);
+            // Update real-time status if the booking is active right now
+            $now = Carbon::now();
+            $startDt = Carbon::parse($validated['start_date']);
+            $endDt = Carbon::parse($validated['end_date']);
+            if ($startDt->lte($now) && $endDt->gte($now)) {
+                $vehicle->update(['status' => 'reserved']);
+                $driver->update(['status' => 'reserved']);
+            }
 
             // Create Level 1 Approval Record
             BookingApproval::create([
@@ -221,7 +362,7 @@ class VehicleBookingController extends Controller
                 'action' => 'CREATE_BOOKING',
                 'entity_type' => 'VehicleBooking',
                 'entity_id' => $booking->id,
-                'description' => 'Menginput pemesanan kendaraan ' . $booking->booking_code . ' (Status Armada & Driver diubah ke RESERVED)',
+                'description' => 'Menginput pemesanan kendaraan ' . $booking->booking_code . ' untuk jadwal ' . Carbon::parse($validated['start_date'])->format('d/m/Y H:i') . ' s/d ' . Carbon::parse($validated['end_date'])->format('d/m/Y H:i'),
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
@@ -231,7 +372,7 @@ class VehicleBookingController extends Controller
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Pemesanan kendaraan ' . $bookingCode . ' berhasil dibuat. Status kendaraan & driver otomatis diubah menjadi RESERVED.',
+                    'message' => 'Pemesanan kendaraan ' . $bookingCode . ' berhasil dibuat.',
                     'data' => $booking,
                 ]);
             }
@@ -277,6 +418,21 @@ class VehicleBookingController extends Controller
         }
 
         $booking = VehicleBooking::findOrFail($id);
+
+        if ($booking->status === 'rejected') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pemesanan yang telah ditolak tidak dapat dibatalkan.',
+            ], 422);
+        }
+
+        if (in_array($booking->status, ['completed', 'cancelled'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pemesanan ini sudah selesai atau telah dibatalkan sebelumnya.',
+            ], 422);
+        }
+
         $bookingCode = $booking->booking_code;
 
         DB::beginTransaction();
@@ -293,6 +449,16 @@ class VehicleBookingController extends Controller
 
             // Change status to cancelled and apply soft delete
             $booking->update(['status' => 'cancelled']);
+            
+            // Also cancel any pending approvals for this booking
+            BookingApproval::where('vehicle_booking_id', $booking->id)
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'cancelled',
+                    'note' => 'Pemesanan dibatalkan oleh Administrator.',
+                    'responded_at' => now(),
+                ]);
+
             $booking->delete();
 
             ActivityLog::create([
@@ -300,7 +466,7 @@ class VehicleBookingController extends Controller
                 'action' => 'CANCEL_BOOKING',
                 'entity_type' => 'VehicleBooking',
                 'entity_id' => $id,
-                'description' => 'Membatalkan pemesanan kendaraan: ' . $bookingCode . ' (Status Armada & Driver dikembalikan ke AVAILABLE)',
+                'description' => 'Membatalkan pemesanan kendaraan: ' . $bookingCode . ' (Jadwal reservasi dibatalkan)',
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
@@ -310,7 +476,7 @@ class VehicleBookingController extends Controller
             if ($request->ajax() || $request->wantsJson()) {
                 return response()->json([
                     'success' => true,
-                    'message' => 'Pemesanan kendaraan ' . $bookingCode . ' berhasil dibatalkan. Status armada & driver telah dikembalikan ke TERSEDIA.',
+                    'message' => 'Pemesanan kendaraan ' . $bookingCode . ' berhasil dibatalkan.',
                 ]);
             }
 

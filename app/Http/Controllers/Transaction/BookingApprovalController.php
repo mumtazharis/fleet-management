@@ -23,6 +23,9 @@ class BookingApprovalController extends Controller
 
         if ($request->ajax()) {
             $query = BookingApproval::with([
+                'booking' => function ($q) {
+                    $q->withTrashed();
+                },
                 'booking.user',
                 'booking.vehicle',
                 'booking.driver',
@@ -44,7 +47,7 @@ class BookingApprovalController extends Controller
                     })->orWhere(function ($sub) {
                         $sub->where('approval_level', 1)
                             ->whereHas('booking.approvals', function ($l1) {
-                                $l1->where('approval_level', 1)->whereIn('status', ['pending', 'rejected']);
+                                $l1->where('approval_level', 1)->whereIn('status', ['pending', 'rejected', 'cancelled']);
                             });
                     });
                 });

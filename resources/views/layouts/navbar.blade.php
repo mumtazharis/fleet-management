@@ -6,11 +6,11 @@
       <span></span>
     </button>
 
-    <div class="d-none d-md-flex ms-3 align-items-center">
+    {{-- <div class="d-none d-md-flex ms-3 align-items-center">
       <span class="badge text-bg-light border text-dark fs-6 font-monospace">
         <i class="bi bi-geo-alt-fill text-warning me-1"></i> {{ Auth::user()->location?->name ?? 'HQ / Office Fleet' }}
       </span>
-    </div>
+    </div> --}}
 
     <div class="navbar-actions ms-auto d-flex align-items-center gap-2">
       <!-- Theme Toggle -->

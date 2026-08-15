@@ -66,10 +66,12 @@
       <span class="nav-text">Riwayat Service</span>
     </a>
 
+    @if(Auth::user()->role?->name === 'admin')
     <a class="nav-link {{ request()->routeIs('activity-logs.*') ? 'active' : '' }}" href="{{ route('activity-logs.index') }}">
       <span class="nav-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></span>
       <span class="nav-text">Log Aktivitas</span>
     </a>
+    @endif
   </nav>
 
   <!-- Sidebar User Badge dengan Bootstrap Icon -->

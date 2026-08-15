@@ -93,11 +93,21 @@
               <label class="form-label fw-semibold" for="selectStartLocation">Lokasi Asal / Penjemputan <span class="text-danger">*</span></label>
               <select class="form-select select2" id="selectStartLocation" name="start_location_id" required>
                 <option value="" selected disabled>-- Pilih Lokasi Asal --</option>
+                <option value="other">[+] Lokasi Lainnya (Input Manual)</option>
                 @foreach($locations as $loc)
                   <option value="{{ $loc->id }}">{{ $loc->name }} ({{ ucfirst($loc->type) }})</option>
                 @endforeach
               </select>
               <div class="invalid-feedback" id="err-start_location_id">Pilih lokasi penjemputan.</div>
+
+              <!-- Input Kustom Lokasi Asal Lainnya (Kondisional) -->
+              <div class="mt-2 d-none" id="containerStartOther">
+                <label class="form-label small fw-semibold text-primary mb-1" for="inputStartOtherLocation">
+                  <i class="bi bi-geo-alt me-1"></i>Nama / Alamat Penjemputan Spesifik <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control form-control-sm border-primary" id="inputStartOtherLocation" name="start_address" placeholder="Contoh: Bandara Sultan Hasanuddin Makassar / Hotel Claro">
+                <div class="invalid-feedback" id="err-start_address">Nama / alamat lokasi penjemputan lainnya wajib diisi.</div>
+              </div>
             </div>
 
             <!-- Lokasi Tujuan -->
@@ -105,11 +115,21 @@
               <label class="form-label fw-semibold" for="selectDestinationLocation">Lokasi Tujuan <span class="text-danger">*</span></label>
               <select class="form-select select2" id="selectDestinationLocation" name="destination_location_id" required>
                 <option value="" selected disabled>-- Pilih Lokasi Tujuan --</option>
+                <option value="other">[+] Lokasi Lainnya (Input Manual)</option>
                 @foreach($locations as $loc)
                   <option value="{{ $loc->id }}">{{ $loc->name }} ({{ ucfirst($loc->type) }})</option>
                 @endforeach
               </select>
               <div class="invalid-feedback" id="err-destination_location_id">Pilih lokasi tujuan.</div>
+
+              <!-- Input Kustom Lokasi Tujuan Lainnya (Kondisional) -->
+              <div class="mt-2 d-none" id="containerDestOther">
+                <label class="form-label small fw-semibold text-primary mb-1" for="inputDestOtherLocation">
+                  <i class="bi bi-geo-alt-fill me-1"></i>Nama / Alamat Tujuan Spesifik <span class="text-danger">*</span>
+                </label>
+                <input type="text" class="form-control form-control-sm border-primary" id="inputDestOtherLocation" name="destination_address" placeholder="Contoh: Pelabuhan Pomalaa / RS Rujukan / Kantor ESDM">
+                <div class="invalid-feedback" id="err-destination_address">Nama / alamat lokasi tujuan lainnya wajib diisi.</div>
+              </div>
             </div>
 
             <!-- Waktu Mulai -->
@@ -296,7 +316,7 @@
             }
 
             let btnCancel = '';
-            if (row.status !== 'completed') {
+            if (row.status !== 'completed' && row.status !== 'rejected') {
               btnCancel = `
                 <button type="button" class="btn btn-sm btn-outline-warning btn-cancel ms-1" data-id="${data}" data-code="${escapeHtml(row.booking_code)}" title="Batalkan Pemesanan">
                   Batalkan
@@ -326,31 +346,49 @@
       order: [[0, 'desc']]
     });
 
-    // Helper: Refresh Dynamic Form Options via AJAX
-    function refreshBookingOptions(callback) {
+    // Helper: Refresh Dynamic Form Options via AJAX with optional date range conflict filter
+    function refreshBookingOptions(callback, startDate, endDate) {
+      const params = {};
+      const sDate = startDate || $('#inputStartDate').val();
+      const eDate = endDate || $('#inputEndDate').val();
+      if (sDate && eDate) {
+        params.start_date = sDate;
+        params.end_date = eDate;
+      }
+
       $.ajax({
         url: "{{ route('bookings.options') }}",
         type: 'GET',
+        data: params,
         dataType: 'json',
         success: function(res) {
           if (res.available_vehicles) {
+            const currentVVal = $('#selectVehicle').val();
             let vOpts = '<option value="" selected disabled>-- Pilih Kendaraan Tersedia --</option>';
             res.available_vehicles.forEach(v => {
               const pool = v.location ? v.location.name : '-';
               vOpts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | Pool: ${escapeHtml(pool)})</option>`;
             });
             $('#selectVehicle').html(vOpts);
+            if (currentVVal && res.available_vehicles.some(v => v.id == currentVVal)) {
+              $('#selectVehicle').val(currentVVal);
+            }
           }
           if (res.available_drivers) {
+            const currentDVal = $('#selectDriver').val();
             let dOpts = '<option value="" selected disabled>-- Pilih Driver Tersedia --</option>';
             res.available_drivers.forEach(d => {
               const sim = d.license_number ? d.license_number : 'Tanpa No SIM';
               dOpts += `<option value="${d.id}">${escapeHtml(d.name)} (${escapeHtml(sim)})</option>`;
             });
             $('#selectDriver').html(dOpts);
+            if (currentDVal && res.available_drivers.some(d => d.id == currentDVal)) {
+              $('#selectDriver').val(currentDVal);
+            }
           }
           if (res.locations) {
             let locOpts = '<option value="" selected disabled>-- Pilih Lokasi --</option>';
+            locOpts += '<option value="other">[+] Lokasi Lainnya (Input Manual)</option>';
             res.locations.forEach(loc => {
               locOpts += `<option value="${loc.id}">${escapeHtml(loc.name)} (${escapeHtml(loc.type)})</option>`;
             });
@@ -365,6 +403,36 @@
         }
       });
     }
+
+    // Auto-filter armada & driver jika tanggal & waktu trip diubah
+    $('#inputStartDate, #inputEndDate').on('change', function() {
+      const s = $('#inputStartDate').val();
+      const e = $('#inputEndDate').val();
+      if (s && e) {
+        refreshBookingOptions();
+      }
+    });
+
+    // Toggle Input Lokasi Kustom jika memilih opsi "other"
+    $('#selectStartLocation').on('change', function() {
+      if ($(this).val() === 'other') {
+        $('#containerStartOther').removeClass('d-none');
+        $('#inputStartOtherLocation').prop('required', true).focus();
+      } else {
+        $('#containerStartOther').addClass('d-none');
+        $('#inputStartOtherLocation').prop('required', false).val('');
+      }
+    });
+
+    $('#selectDestinationLocation').on('change', function() {
+      if ($(this).val() === 'other') {
+        $('#containerDestOther').removeClass('d-none');
+        $('#inputDestOtherLocation').prop('required', true).focus();
+      } else {
+        $('#containerDestOther').addClass('d-none');
+        $('#inputDestOtherLocation').prop('required', false).val('');
+      }
+    });
 
     // Tombol Export Excel (AJAX dengan Loading)
     $('#btnExportBookings').on('click', function(e) {
@@ -418,7 +486,11 @@
     $('#btnCreateBooking').on('click', function() {
       $('#formBooking')[0].reset();
       $('#formBooking').removeClass('was-validated');
-      $('.invalid-feedback').text('');
+      $('.invalid-feedback').text('').hide();
+      $('#containerStartOther').addClass('d-none');
+      $('#inputStartOtherLocation').prop('required', false).val('');
+      $('#containerDestOther').addClass('d-none');
+      $('#inputDestOtherLocation').prop('required', false).val('');
       refreshBookingOptions(function() {
         $('.select2').val('').trigger('change');
       });

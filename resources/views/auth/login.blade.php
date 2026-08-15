@@ -27,9 +27,9 @@
 </head>
 
 <body class="auth-body">
-  <button class="icon-button theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
+  {{-- <button class="icon-button theme-toggle auth-theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" title="Switch color theme">
     <i class="bi bi-moon-stars" data-theme-icon aria-hidden="true"></i>
-  </button>
+  </button> --}}
 
   <main class="auth-page">
     <section class="auth-card shadow-lg rounded-4 p-4 p-md-5">

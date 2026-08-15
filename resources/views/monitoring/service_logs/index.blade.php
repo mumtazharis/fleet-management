@@ -7,7 +7,7 @@
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
   <div>
     <h1 class="h3 mb-1">Riwayat & Pemeliharaan Servis Armada</h1>
-    <p class="text-muted mb-0">Kelola & pantau perawatan berkala, perbaikan mesin, ganti oli, dan riwayat biaya servis kendaraan tambang.</p>
+    <p class="text-muted mb-0">Kelola & pantau jadwal servis berkala, perbaikan mesin, dan riwayat biaya perawatan.</p>
   </div>
 
   @if(Auth::user()->role?->name === 'admin')
@@ -69,7 +69,7 @@
       <thead class="table-light">
         <tr>
           <th class="text-center">No.</th>
-          <th>Tanggal Servis</th>
+          <th>Jadwal Servis (Rentang Waktu)</th>
           <th>Kendaraan & Pool</th>
           <th>Jenis Servis</th>
           <th>Biaya (Rp)</th>
@@ -84,13 +84,13 @@
   </div>
 </div>
 
-<!-- MODAL FORM INPUT / EDIT SERVIS -->
+<!-- MODAL FORM INPUT / EDIT SERVIS (ADVANCED SCHEDULE) -->
 <div class="modal fade" id="serviceLogModal" tabindex="-1" aria-labelledby="serviceLogModalLabel" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content border-0 shadow">
       <div class="modal-header">
         <h5 class="modal-title fw-bold" id="serviceLogModalLabel">
-          <i class="bi bi-tools me-2"></i><span id="modalTitle">Catat Servis Baru</span>
+          <span id="modalTitle">Catat Servis Baru</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -100,15 +100,25 @@
         <input type="hidden" name="_method" id="formMethod" value="POST">
 
         <div class="modal-body p-4">
-          <div class="alert alert-info border-0 rounded-3 mb-3 d-flex align-items-center gap-2">
-            <i class="bi bi-info-circle-fill fs-5"></i>
-            <small>Menambahkan kendaraan ke daftar servis akan <strong>otomatis mengubah status armada menjadi MAINTENANCE (Dalam Perawatan)</strong> dan status transaksi servis menjadi <strong>Dalam Servis</strong>.</small>
-          </div>
 
           <div class="row g-3">
-            <!-- Pilih Kendaraan (Available Only) -->
+            <!-- Waktu Mulai Servis -->
             <div class="col-12 col-md-6">
-              <label class="form-label fw-semibold" for="selectVehicle">Pilih Kendaraan (Tersedia) <span class="text-danger">*</span></label>
+              <label class="form-label fw-semibold" for="inputStartDate">Tanggal & Waktu Mulai Servis <span class="text-danger">*</span></label>
+              <input type="datetime-local" class="form-control" id="inputStartDate" name="start_date" required>
+              <div class="invalid-feedback" id="err-start_date">Tanggal & waktu mulai servis wajib diisi.</div>
+            </div>
+
+            <!-- Waktu Selesai Servis -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="inputEndDate">Tanggal & Waktu Selesai Servis <span class="text-danger">*</span></label>
+              <input type="datetime-local" class="form-control" id="inputEndDate" name="end_date" required>
+              <div class="invalid-feedback" id="err-end_date">Tanggal & waktu selesai servis wajib diisi (harus setelah waktu mulai).</div>
+            </div>
+
+            <!-- Pilih Kendaraan (Available / Dynamic Range) -->
+            <div class="col-12 col-md-6">
+              <label class="form-label fw-semibold" for="selectVehicle">Pilih Kendaraan Operasional <span class="text-danger">*</span></label>
               <select class="form-select select2" id="selectVehicle" name="vehicle_id" required>
                 <option value="" selected disabled>-- Pilih Kendaraan Tersedia --</option>
                 @foreach($availableVehicles as $v)
@@ -117,7 +127,7 @@
                   </option>
                 @endforeach
               </select>
-              <div class="invalid-feedback" id="err-vehicle_id">Pilih kendaraan yang tersedia.</div>
+              <div class="invalid-feedback" id="err-vehicle_id">Pilih kendaraan operasional.</div>
             </div>
 
             <!-- Jenis Servis -->
@@ -135,15 +145,8 @@
               <div class="invalid-feedback" id="err-service_type">Jenis servis wajib diisi.</div>
             </div>
 
-            <!-- Tanggal Servis -->
-            <div class="col-12 col-md-6">
-              <label class="form-label fw-semibold" for="inputServiceDate">Tanggal Servis <span class="text-danger">*</span></label>
-              <input type="date" class="form-control" id="inputServiceDate" name="service_date" value="{{ date('Y-m-d') }}" required>
-              <div class="invalid-feedback" id="err-service_date">Tanggal servis wajib diisi.</div>
-            </div>
-
             <!-- Biaya Servis -->
-            <div class="col-12 col-md-6">
+            <div class="col-12">
               <label class="form-label fw-semibold" for="inputCost">Biaya Servis (Rp) <span class="text-danger">*</span></label>
               <input type="number" step="1" min="0" class="form-control" id="inputCost" name="cost" placeholder="Contoh: 1500000" required>
               <div class="invalid-feedback" id="err-cost">Biaya servis wajib diisi.</div>
@@ -152,7 +155,7 @@
             <!-- Deskripsi / Rincian Perbaikan -->
             <div class="col-12">
               <label class="form-label fw-semibold" for="inputDescription">Rincian Perbaikan / Sparepart yang Diganti</label>
-              <textarea class="form-control" id="inputDescription" name="description" rows="3" placeholder="Catat suku cadang yang diganti, nama bengkel, atau garansi..."></textarea>
+              <textarea class="form-control" id="inputDescription" name="description" rows="3" placeholder="Catat suku cadang yang diganti, nama bengkel, atau catatan perbaikan..."></textarea>
               <div class="invalid-feedback" id="err-description">Rincian perbaikan maksimal 1000 karakter.</div>
             </div>
           </div>
@@ -203,6 +206,19 @@
     const detailModal = new bootstrap.Modal(detailModalEl);
 
     const isAdmin = @json(Auth::user()->role?->name === 'admin');
+    let currentEditId = null;
+
+    function formatDateTime(dtStr) {
+      if (!dtStr) return '-';
+      const d = new Date(dtStr);
+      if (isNaN(d.getTime())) return dtStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
+    }
 
     // 1. DataTables Server-Side Processing
     const tableServiceLogs = $('#tableServiceLogs').DataTable({
@@ -212,10 +228,17 @@
       columns: [
         { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
         {
-          data: 'service_date',
-          name: 'service_date',
-          render: function(data) {
-            return formatDate(data);
+          data: 'start_date',
+          name: 'start_date',
+          render: function(data, type, row) {
+            const start = formatDateTime(row.start_date || row.service_date);
+            const end = row.end_date ? formatDateTime(row.end_date) : '-';
+            return `
+              <div class="lh-sm">
+                <small class="d-block font-monospace text-dark fw-semibold"><i class="bi bi-calendar-event me-1 text-primary"></i>${start}</small>
+                <small class="d-block font-monospace text-muted"><i class="bi bi-arrow-return-right me-1"></i>s/d ${end}</small>
+              </div>
+            `;
           }
         },
         {
@@ -228,8 +251,8 @@
 
             return `
               <div class="lh-sm">
-                <span class="d-block text-dark fw-semibold">${vName} <small class="text-muted">(${plate})</small></span> 
-                <small class="text-muted">Pool: ${location}</small>
+                <span class="d-block text-dark fw-semibold"><i class="bi bi-truck me-1"></i>${vName} <small class="text-muted">(${plate})</small></span> 
+                <small class="text-secondary">Pool: ${location}</small>
               </div>
             `;
           }
@@ -238,14 +261,14 @@
           data: 'service_type',
           name: 'service_type',
           render: function(data) {
-            return `${escapeHtml(data)}`;
+            return `<span class="badge text-bg-light border text-dark">${escapeHtml(data)}</span>`;
           }
         },
         {
           data: 'cost',
           name: 'cost',
           render: function(data) {
-            return `${formatRupiah(data)}`;
+            return `<strong class="text-dark">${formatRupiah(data)}</strong>`;
           }
         },
         {
@@ -320,11 +343,23 @@
       order: [[1, 'desc']]
     });
 
-    // Helper: Refresh Dynamic Form Options & Stat Cards via AJAX
-    function refreshServiceOptionsAndStats(callback) {
+    // Helper: Refresh Dynamic Form Options & Stat Cards via AJAX (with Date Filter)
+    function refreshServiceOptionsAndStats(callback, startDate, endDate, excludeId) {
+      const params = {};
+      const s = startDate || $('#inputStartDate').val();
+      const e = endDate || $('#inputEndDate').val();
+      if (s && e) {
+        params.start_date = s;
+        params.end_date = e;
+      }
+      if (excludeId) {
+        params.exclude_id = excludeId;
+      }
+
       $.ajax({
         url: "{{ route('service-logs.options') }}",
         type: 'GET',
+        data: params,
         dataType: 'json',
         success: function(res) {
           if (res.stats) {
@@ -349,18 +384,38 @@
       });
     }
 
+    // Auto filter kendaraan saat tanggal mulai/selesai servis diubah
+    $('#inputStartDate, #inputEndDate').on('change', function() {
+      const s = $('#inputStartDate').val();
+      const e = $('#inputEndDate').val();
+      if (s && e) {
+        refreshServiceOptionsAndStats(null, s, e, currentEditId);
+      }
+    });
+
     // Tombol Tambah Servis
     $('#btnCreateServiceLog').on('click', function() {
+      currentEditId = null;
       $('#modalTitle').text('Catat Servis Kendaraan Baru');
       $('#formServiceLog')[0].reset();
       $('#formMethod').val('POST');
       $('#formServiceLog').attr('action', "{{ route('service-logs.store') }}");
       $('#formServiceLog').removeClass('was-validated');
       $('.invalid-feedback').text('');
-      $('#inputServiceDate').val(new Date().toISOString().split('T')[0]);
+
+      // Set default dates: now to tomorrow
+      const now = new Date();
+      const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const nowStr = now.toISOString().slice(0, 16);
+      const tomorrowStr = tomorrow.toISOString().slice(0, 16);
+
+      $('#inputStartDate').val(nowStr);
+      $('#inputEndDate').val(tomorrowStr);
+
       refreshServiceOptionsAndStats(function() {
         $('#selectVehicle').val('').trigger('change');
-      });
+      }, nowStr, tomorrowStr);
+
       serviceLogModal.show();
     });
 
@@ -401,9 +456,13 @@
           if (xhr.status === 422) {
             const errors = xhr.responseJSON.errors;
             form.addClass('was-validated');
-            $.each(errors, function(field, messages) {
-              $('#err-' + field).text(messages[0]).show();
-            });
+            if (errors) {
+              $.each(errors, function(field, messages) {
+                $('#err-' + field).text(messages[0]).show();
+              });
+            } else if (xhr.responseJSON.message) {
+              Swal.fire('Jadwal Tidak Valid', xhr.responseJSON.message, 'warning');
+            }
           } else {
             const msg = xhr.responseJSON ? xhr.responseJSON.message : 'Terjadi kesalahan sistem.';
             Swal.fire('Error', msg, 'error');
@@ -415,6 +474,7 @@
     // Tombol Edit
     $(document).on('click', '.btn-edit', function() {
       const id = $(this).data('id');
+      currentEditId = id;
       const url = "{{ url('service-logs') }}/" + id;
 
       $('#modalTitle').text('Edit Riwayat Servis');
@@ -428,27 +488,19 @@
         type: 'GET',
         dataType: 'json',
         success: function(data) {
-          $.ajax({
-            url: "{{ route('service-logs.options') }}",
-            type: 'GET',
-            dataType: 'json',
-            success: function(res) {
-              const vehicles = res.all_vehicles || res.available_vehicles || [];
-              let opts = '<option value="" disabled>-- Pilih Kendaraan --</option>';
-              vehicles.forEach(v => {
-                const pool = v.location ? v.location.name : '-';
-                opts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | Pool: ${escapeHtml(pool)})</option>`;
-              });
-              $('#selectVehicle').html(opts);
-              $('#selectVehicle').val(data.vehicle_id).trigger('change');
-              $('#inputServiceType').val(data.service_type);
-              $('#inputServiceDate').val(data.service_date ? data.service_date.split('T')[0] : '');
-              $('#inputCost').val(data.cost);
-              $('#inputDescription').val(data.description || '');
+          const sDate = data.start_date ? data.start_date.substring(0, 16) : (data.service_date ? data.service_date + 'T08:00' : '');
+          const eDate = data.end_date ? data.end_date.substring(0, 16) : (data.service_date ? data.service_date + 'T17:00' : '');
 
-              serviceLogModal.show();
-            }
-          });
+          $('#inputStartDate').val(sDate);
+          $('#inputEndDate').val(eDate);
+          $('#inputServiceType').val(data.service_type);
+          $('#inputCost').val(data.cost);
+          $('#inputDescription').val(data.description || '');
+
+          refreshServiceOptionsAndStats(function() {
+            $('#selectVehicle').val(data.vehicle_id).trigger('change');
+            serviceLogModal.show();
+          }, sDate, eDate, currentEditId);
         },
         error: function() {
           Swal.fire('Error', 'Gagal memuat data servis.', 'error');
@@ -521,6 +573,9 @@
             ? '<span class="badge text-bg-success fs-6">SELESAI (COMPLETED)</span>'
             : (data.status === 'cancelled' ? '<span class="badge text-bg-secondary fs-6">DIBATALKAN</span>' : '<span class="badge text-bg-warning text-dark fs-6">DALAM SERVIS (IN PROGRESS)</span>');
 
+          const startStr = formatDateTime(data.start_date || data.service_date);
+          const endStr = data.end_date ? formatDateTime(data.end_date) : '-';
+
           const html = `
             <div class="row g-3">
               <div class="col-12">
@@ -530,7 +585,8 @@
                 <div class="p-3 rounded-3 h-100 border">
                   <div class="mb-2"><strong>Status Servis:</strong> ${serviceStatus}</div>
                   <div class="mb-2"><strong>Jenis Servis:</strong> <span class="badge text-bg-primary fs-6">${escapeHtml(data.service_type)}</span></div>
-                  <div class="mb-2"><strong>Tanggal Servis:</strong> <span class="text-dark fw-bold">${formatDate(data.service_date)}</span></div>
+                  <div class="mb-2"><strong>Waktu Mulai:</strong> <span class="text-dark fw-bold">${startStr}</span></div>
+                  <div class="mb-2"><strong>Waktu Selesai:</strong> <span class="text-dark fw-bold">${endStr}</span></div>
                   <div class="mb-2"><strong>Total Biaya:</strong> <span class="text-success fw-bold fs-6">${formatRupiah(data.cost)}</span></div>
                 </div>
               </div>

@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\ServiceLog;
 use App\Models\Vehicle;
+use App\Models\VehicleBooking;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -38,19 +40,62 @@ class ServiceLogController extends Controller
         $totalServices = ServiceLog::count();
         $inMaintenanceCount = ServiceLog::where('status', 'in_progress')->count();
 
-        // Dropdown Vehicles: ONLY AVAILABLE VEHICLES FOR INPUT SERVICE!
-        $availableVehicles = Vehicle::where('status', 'available')->with('location')->orderBy('name')->get();
+        // Dropdown Vehicles: Not in permanent maintenance
+        $availableVehicles = Vehicle::where('status', '!=', 'maintenance')->with('location')->orderBy('name')->get();
 
         return view('monitoring.service_logs.index', compact('availableVehicles', 'totalCost', 'totalServices', 'inMaintenanceCount'));
     }
 
     /**
-     * Get dynamic options and stats for service logs (AJAX).
+     * Get dynamic options and stats for service logs with date-range conflict check (AJAX).
      */
-    public function options()
+    public function options(Request $request)
     {
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $excludeServiceId = $request->input('exclude_id');
+
+        $vehiclesQuery = Vehicle::with('location')->orderBy('name');
+
+        if ($startDate && $endDate) {
+            // Find vehicles with overlapping active bookings
+            $bookedVehicleIds = VehicleBooking::whereIn('status', ['pending', 'approved', 'in_progress'])
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<', $endDate)
+                      ->where('end_date', '>', $startDate);
+                })
+                ->pluck('vehicle_id')
+                ->toArray();
+
+            // Find vehicles with overlapping active services
+            $serviceQuery = ServiceLog::where('status', 'in_progress');
+            if ($excludeServiceId) {
+                $serviceQuery->where('id', '!=', $excludeServiceId);
+            }
+            $servicedVehicleIds = $serviceQuery
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where(function ($sub) use ($startDate, $endDate) {
+                        $sub->whereNotNull('start_date')
+                            ->whereNotNull('end_date')
+                            ->where('start_date', '<', $endDate)
+                            ->where('end_date', '>', $startDate);
+                    })->orWhere(function ($sub) use ($startDate, $endDate) {
+                        $sub->whereNull('start_date')
+                            ->whereBetween('service_date', [
+                                Carbon::parse($startDate)->toDateString(),
+                                Carbon::parse($endDate)->toDateString()
+                            ]);
+                    });
+                })
+                ->pluck('vehicle_id')
+                ->toArray();
+
+            $unavailableVehicleIds = array_unique(array_merge($bookedVehicleIds, $servicedVehicleIds));
+            $vehiclesQuery->whereNotIn('id', $unavailableVehicleIds);
+        }
+
         return response()->json([
-            'available_vehicles' => Vehicle::where('status', 'available')->with('location')->orderBy('name')->get(),
+            'available_vehicles' => $vehiclesQuery->get(),
             'all_vehicles' => Vehicle::with('location')->orderBy('name')->get(),
             'stats' => [
                 'total_cost' => (float) ServiceLog::sum('cost'),
@@ -61,7 +106,7 @@ class ServiceLogController extends Controller
     }
 
     /**
-     * Store a newly created service log.
+     * Store a newly created service log with date-range conflict validation.
      */
     public function store(Request $request)
     {
@@ -75,31 +120,83 @@ class ServiceLogController extends Controller
         $validated = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')->whereNull('deleted_at')],
             'service_type' => ['required', 'string', 'max:100'],
-            'service_date' => ['required', 'date'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after:start_date'],
             'cost' => ['required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string', 'max:1000'],
         ], [
-            'vehicle_id.required' => 'Pilih kendaraan yang tersedia.',
+            'vehicle_id.required' => 'Pilih kendaraan operasional.',
             'service_type.required' => 'Jenis servis wajib diisi.',
-            'service_date.required' => 'Tanggal servis wajib diisi.',
+            'start_date.required' => 'Tanggal & waktu mulai servis wajib diisi.',
+            'end_date.required' => 'Tanggal & waktu selesai servis wajib diisi.',
+            'end_date.after' => 'Waktu selesai servis harus setelah waktu mulai servis.',
             'cost.required' => 'Biaya servis wajib diisi.',
         ]);
 
+        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
+
+        // 1. Conflict Check: Service vs active Vehicle Bookings
+        $bookingConflict = VehicleBooking::where('vehicle_id', $validated['vehicle_id'])
+            ->whereIn('status', ['pending', 'approved', 'in_progress'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_date', '<', $validated['end_date'])
+                  ->where('end_date', '>', $validated['start_date']);
+            })->first();
+
+        if ($bookingConflict) {
+            $bStart = Carbon::parse($bookingConflict->start_date)->format('d/m/Y H:i');
+            $bEnd = Carbon::parse($bookingConflict->end_date)->format('d/m/Y H:i');
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" sudah memiliki jadwal pemesanan aktif (' . $bookingConflict->booking_code . ') pada rentang waktu ' . $bStart . ' s/d ' . $bEnd . '.',
+            ], 422);
+        }
+
+        // 2. Conflict Check: Service vs other active Service Logs
+        $serviceConflict = ServiceLog::where('vehicle_id', $validated['vehicle_id'])
+            ->where('status', 'in_progress')
+            ->where(function ($q) use ($validated) {
+                $q->where(function ($sub) use ($validated) {
+                    $sub->whereNotNull('start_date')
+                        ->whereNotNull('end_date')
+                        ->where('start_date', '<', $validated['end_date'])
+                        ->where('end_date', '>', $validated['start_date']);
+                })->orWhere(function ($sub) use ($validated) {
+                    $sub->whereNull('start_date')
+                        ->whereBetween('service_date', [
+                            Carbon::parse($validated['start_date'])->toDateString(),
+                            Carbon::parse($validated['end_date'])->toDateString()
+                        ]);
+                });
+            })->first();
+
+        if ($serviceConflict) {
+            $sStart = $serviceConflict->start_date ? Carbon::parse($serviceConflict->start_date)->format('d/m/Y H:i') : Carbon::parse($serviceConflict->service_date)->format('d/m/Y');
+            $sEnd = $serviceConflict->end_date ? Carbon::parse($serviceConflict->end_date)->format('d/m/Y H:i') : '-';
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" sudah dijadwalkan dalam masa servis lain (' . $serviceConflict->service_type . ') pada rentang waktu ' . $sStart . ($sEnd !== '-' ? ' s/d ' . $sEnd : '') . '.',
+            ], 422);
+        }
+
         DB::beginTransaction();
         try {
-            // Set status = 'in_progress' in service_logs table
             $serviceLog = ServiceLog::create([
                 'vehicle_id' => $validated['vehicle_id'],
                 'service_type' => $validated['service_type'],
-                'service_date' => $validated['service_date'],
+                'start_date' => $validated['start_date'],
+                'end_date' => $validated['end_date'],
+                'service_date' => Carbon::parse($validated['start_date'])->toDateString(),
                 'cost' => (float) $validated['cost'],
                 'status' => 'in_progress',
                 'description' => $validated['description'] ?? null,
             ]);
 
-            // AUTOMATICALLY update vehicle status to 'maintenance'
-            $vehicle = Vehicle::find($validated['vehicle_id']);
-            if ($vehicle) {
+            // If the service is actively happening right now, update vehicle status to 'maintenance'
+            $now = Carbon::now();
+            $sStartDt = Carbon::parse($validated['start_date']);
+            $sEndDt = Carbon::parse($validated['end_date']);
+            if ($sStartDt->lte($now) && $sEndDt->gte($now)) {
                 $vehicle->update(['status' => 'maintenance']);
             }
 
@@ -108,7 +205,7 @@ class ServiceLogController extends Controller
                 'action' => 'INPUT_SERVICE_LOG',
                 'entity_type' => 'ServiceLog',
                 'entity_id' => $serviceLog->id,
-                'description' => 'Mencatat servis ' . $validated['service_type'] . ' untuk kendaraan ' . ($vehicle?->name ?? 'ID ' . $validated['vehicle_id']) . '. Status servis = in_progress & armada diubah ke MAINTENANCE.',
+                'description' => 'Mencatat jadwal servis ' . $validated['service_type'] . ' untuk armada ' . $vehicle->name . ' (' . Carbon::parse($validated['start_date'])->format('d/m/Y H:i') . ' s/d ' . Carbon::parse($validated['end_date'])->format('d/m/Y H:i') . ')',
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
@@ -117,7 +214,7 @@ class ServiceLogController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pencatatan servis berhasil disimpan. Status servis menjadi Dalam Servis (in_progress) & armada otomatis diubah ke MAINTENANCE.',
+                'message' => 'Jadwal servis kendaraan berhasil disimpan.',
             ]);
 
         } catch (\Exception $e) {
@@ -222,7 +319,7 @@ class ServiceLogController extends Controller
                 'action' => 'CANCEL_SERVICE_LOG',
                 'entity_type' => 'ServiceLog',
                 'entity_id' => $serviceLog->id,
-                'description' => 'Membatalkan transaksi servis kendaraan ' . ($serviceLog->vehicle?->name ?? '') . '. Status armada dikembalikan ke AVAILABLE.',
+                'description' => 'Membatalkan jadwal servis kendaraan ' . ($serviceLog->vehicle?->name ?? '') . '. Status armada dikembalikan ke AVAILABLE.',
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
@@ -231,7 +328,7 @@ class ServiceLogController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Pencatatan servis kendaraan ' . ($serviceLog->vehicle?->name ?? '') . ' berhasil DIBATALKAN. Status armada telah dikembalikan ke TERSEDIA.',
+                'message' => 'Jadwal servis kendaraan ' . ($serviceLog->vehicle?->name ?? '') . ' berhasil DIBATALKAN.',
             ]);
 
         } catch (\Exception $e) {
@@ -274,22 +371,72 @@ class ServiceLogController extends Controller
         $validated = $request->validate([
             'vehicle_id' => ['required', Rule::exists('vehicles', 'id')->whereNull('deleted_at')],
             'service_type' => ['required', 'string', 'max:100'],
-            'service_date' => ['required', 'date'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['required', 'date', 'after:start_date'],
             'cost' => ['required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string', 'max:1000'],
         ], [
             'vehicle_id.required' => 'Pilih kendaraan operasional.',
             'service_type.required' => 'Jenis servis wajib diisi.',
-            'service_date.required' => 'Tanggal servis wajib diisi.',
+            'start_date.required' => 'Tanggal & waktu mulai servis wajib diisi.',
+            'end_date.required' => 'Tanggal & waktu selesai servis wajib diisi.',
+            'end_date.after' => 'Waktu selesai servis harus setelah waktu mulai servis.',
             'cost.required' => 'Biaya servis wajib diisi.',
         ]);
+
+        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
+
+        // Check Conflict with Booking
+        $bookingConflict = VehicleBooking::where('vehicle_id', $validated['vehicle_id'])
+            ->whereIn('status', ['pending', 'approved', 'in_progress'])
+            ->where(function ($q) use ($validated) {
+                $q->where('start_date', '<', $validated['end_date'])
+                  ->where('end_date', '>', $validated['start_date']);
+            })->first();
+
+        if ($bookingConflict) {
+            $bStart = Carbon::parse($bookingConflict->start_date)->format('d/m/Y H:i');
+            $bEnd = Carbon::parse($bookingConflict->end_date)->format('d/m/Y H:i');
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" memiliki jadwal pemesanan aktif (' . $bookingConflict->booking_code . ') pada ' . $bStart . ' s/d ' . $bEnd . '.',
+            ], 422);
+        }
+
+        // Check Conflict with other Service Logs
+        $serviceConflict = ServiceLog::where('vehicle_id', $validated['vehicle_id'])
+            ->where('id', '!=', $serviceLog->id)
+            ->where('status', 'in_progress')
+            ->where(function ($q) use ($validated) {
+                $q->where(function ($sub) use ($validated) {
+                    $sub->whereNotNull('start_date')
+                        ->whereNotNull('end_date')
+                        ->where('start_date', '<', $validated['end_date'])
+                        ->where('end_date', '>', $validated['start_date']);
+                })->orWhere(function ($sub) use ($validated) {
+                    $sub->whereNull('start_date')
+                        ->whereBetween('service_date', [
+                            Carbon::parse($validated['start_date'])->toDateString(),
+                            Carbon::parse($validated['end_date'])->toDateString()
+                        ]);
+                });
+            })->first();
+
+        if ($serviceConflict) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Jadwal Bentrok! Kendaraan "' . $vehicle->name . '" sudah memiliki jadwal servis lain yang sedang berjalan pada rentang waktu yang dipilih.',
+            ], 422);
+        }
 
         DB::beginTransaction();
         try {
             $serviceLog->update([
                 'vehicle_id' => $validated['vehicle_id'],
                 'service_type' => $validated['service_type'],
-                'service_date' => $validated['service_date'],
+                'start_date' => $validated['start_date'],
+                'end_date' => $validated['end_date'],
+                'service_date' => Carbon::parse($validated['start_date'])->toDateString(),
                 'cost' => (float) $validated['cost'],
                 'description' => $validated['description'] ?? null,
             ]);
@@ -299,7 +446,7 @@ class ServiceLogController extends Controller
                 'action' => 'UPDATE_SERVICE_LOG',
                 'entity_type' => 'ServiceLog',
                 'entity_id' => $serviceLog->id,
-                'description' => 'Memperbarui riwayat servis (ID ' . $serviceLog->id . ')',
+                'description' => 'Memperbarui jadwal servis (ID ' . $serviceLog->id . ')',
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
@@ -308,7 +455,7 @@ class ServiceLogController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Data riwayat servis berhasil diperbarui.',
+                'message' => 'Data jadwal servis berhasil diperbarui.',
             ]);
 
         } catch (\Exception $e) {
