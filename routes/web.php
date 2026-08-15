@@ -53,4 +53,6 @@ Route::middleware('auth')->group(function () {
     Route::post('/service-logs/{service_log}/complete', [ServiceLogController::class, 'complete'])->name('service-logs.complete');
     Route::post('/service-logs/{service_log}/cancel', [ServiceLogController::class, 'cancel'])->name('service-logs.cancel');
     Route::resource('service-logs', ServiceLogController::class);
+
+    Route::resource('activity-logs', \App\Http\Controllers\Monitoring\ActivityLogController::class)->only(['index', 'show']);
 });
