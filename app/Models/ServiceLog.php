@@ -15,6 +15,7 @@ class ServiceLog extends Model
         'service_type',
         'description',
         'cost',
+        'status',
         'service_date',
         'next_service_date',
     ];

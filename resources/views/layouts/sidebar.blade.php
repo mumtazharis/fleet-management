@@ -61,7 +61,7 @@
       <span class="nav-text">Konsumsi BBM</span>
     </a>
 
-    <a class="nav-link {{ request()->routeIs('service-logs.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('service-logs.*') ? 'active' : '' }}" href="{{ route('service-logs.index') }}">
       <span class="nav-icon"><i class="bi bi-tools" aria-hidden="true"></i></span>
       <span class="nav-text">Riwayat Service</span>
     </a>

@@ -7,6 +7,7 @@ use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\RentalCompanyController;
 use App\Http\Controllers\Master\VehicleController;
 use App\Http\Controllers\Monitoring\FuelLogController;
+use App\Http\Controllers\Monitoring\ServiceLogController;
 use App\Http\Controllers\Transaction\BookingApprovalController;
 use App\Http\Controllers\Transaction\VehicleBookingController;
 use Illuminate\Support\Facades\Route;
@@ -43,4 +44,7 @@ Route::middleware('auth')->group(function () {
 
     // Monitoring Routes
     Route::resource('fuel-logs', FuelLogController::class);
+    Route::post('/service-logs/{service_log}/complete', [ServiceLogController::class, 'complete'])->name('service-logs.complete');
+    Route::post('/service-logs/{service_log}/cancel', [ServiceLogController::class, 'cancel'])->name('service-logs.cancel');
+    Route::resource('service-logs', ServiceLogController::class);
 });
