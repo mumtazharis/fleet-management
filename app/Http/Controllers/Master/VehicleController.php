@@ -21,76 +21,20 @@ class VehicleController extends Controller
     {
         if ($request->ajax()) {
             $query = Vehicle::with(['location', 'rentalCompany'])->select('vehicles.*');
-            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('name_plate', function ($vehicle) {
-                    return '
-                        <strong class="d-block text-dark fs-6">' . e($vehicle->name) . '</strong>
-                        <span class="badge text-bg-dark font-monospace"><i class="bi bi-card-text me-1"></i>' . e($vehicle->license_plate) . '</span>
-                    ';
-                })
-                ->addColumn('type_badge', function ($vehicle) {
-                    if ($vehicle->type === 'passenger') {
-                        return '<span class="badge text-bg-primary"><i class="bi bi-people-fill me-1"></i> Angkutan Orang</span>';
-                    }
-                    return '<span class="badge text-bg-info"><i class="bi bi-box-seam-fill me-1"></i> Angkutan Barang</span>';
-                })
-                ->addColumn('ownership_badge', function ($vehicle) {
-                    if ($vehicle->ownership === 'company') {
-                        return '<span class="badge text-bg-success"><i class="bi bi-building-check me-1"></i> Milik Perusahaan</span>';
-                    }
-                    $rentalName = $vehicle->rentalCompany ? e($vehicle->rentalCompany->name) : 'Perusahaan Sewa';
-                    return '
-                        <span class="badge text-bg-warning text-dark"><i class="bi bi-journal-bookmark-fill me-1"></i> Sewa</span>
-                        <small class="d-block text-muted mt-1">' . $rentalName . '</small>
-                    ';
-                })
-                ->addColumn('location_name', function ($vehicle) {
-                    $locationName = $vehicle->location ? e($vehicle->location->name) : '-';
-                    return '<i class="bi bi-geo-alt-fill text-danger me-1"></i> ' . $locationName;
-                })
-                ->addColumn('fuel_type', function ($vehicle) {
-                    return '<span class="badge text-bg-light border"><i class="bi bi-fuel-pump me-1"></i> ' . e($vehicle->fuel_type) . '</span>';
-                })
-                ->addColumn('status_badge', function ($vehicle) {
-                    if ($vehicle->status === 'available') {
-                        return '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i> Tersedia</span>';
-                    } elseif ($vehicle->status === 'reserved') {
-                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Dipesan (Reserved)</span>';
-                    } elseif ($vehicle->status === 'in_use') {
-                        return '<span class="badge text-bg-primary"><i class="bi bi-arrow-repeat me-1"></i> Sedang Digunakan</span>';
-                    }
-                    return '<span class="badge text-bg-danger"><i class="bi bi-tools me-1"></i> Dalam Service</span>';
-                })
-                ->addColumn('action', function ($vehicle) use ($isAdmin) {
-                    if (!$isAdmin) {
-                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
-                    }
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $vehicle->id . '" title="Edit Kendaraan">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-delete" data-id="' . $vehicle->id . '" data-name="' . e($vehicle->name) . ' (' . e($vehicle->license_plate) . ')" title="Hapus Kendaraan">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    ';
-                })
-                ->filterColumn('location_name', function ($query, $keyword) {
+                ->filterColumn('location.name', function ($query, $keyword) {
                     $query->whereHas('location', function ($q) use ($keyword) {
                         $q->where('name', 'like', "%{$keyword}%");
                     });
                 })
-                ->filterColumn('ownership_badge', function ($query, $keyword) {
+                ->filterColumn('ownership', function ($query, $keyword) {
                     $query->where('ownership', 'like', "%{$keyword}%")
                           ->orWhereHas('rentalCompany', function ($q) use ($keyword) {
                               $q->where('name', 'like', "%{$keyword}%");
                           });
                 })
-                ->rawColumns(['name_plate', 'type_badge', 'ownership_badge', 'location_name', 'fuel_type', 'status_badge', 'action'])
                 ->make(true);
         }
 
@@ -98,6 +42,17 @@ class VehicleController extends Controller
         $rentalCompanies = RentalCompany::orderBy('name')->get();
 
         return view('master.vehicles.index', compact('locations', 'rentalCompanies'));
+    }
+
+    /**
+     * Get dynamic options for vehicle forms (AJAX).
+     */
+    public function options()
+    {
+        return response()->json([
+            'locations' => Location::orderBy('name')->get(),
+            'rental_companies' => RentalCompany::orderBy('name')->get(),
+        ]);
     }
 
     /**

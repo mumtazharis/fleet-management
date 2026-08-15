@@ -158,17 +158,94 @@
     const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     const vehicleColumns = [
-      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-      { data: 'name_plate', name: 'name' },
-      { data: 'type_badge', name: 'type' },
-      { data: 'ownership_badge', name: 'ownership' },
-      { data: 'location_name', name: 'location.name' },
-      { data: 'fuel_type', name: 'fuel_type' },
-      { data: 'status_badge', name: 'status' }
+      { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      {
+        data: 'name',
+        name: 'name',
+        render: function(data, type, row) {
+          const plate = row.license_plate ? escapeHtml(row.license_plate) : '-';
+          return `
+            <strong class="d-block text-dark fs-6">${escapeHtml(data)}</strong>
+            <span>${plate}</span>
+          `;
+        }
+      },
+      {
+        data: 'type',
+        name: 'type',
+        render: function(data) {
+          if (data === 'passenger') {
+            return 'Angkutan Orang';
+          }
+          return 'Angkutan Barang';
+        }
+      },
+      {
+        data: 'ownership',
+        name: 'ownership',
+        render: function(data, type, row) {
+          if (data === 'company') {
+            return 'Milik Perusahaan';
+          }
+          const rentalName = row.rental_company ? escapeHtml(row.rental_company.name) : 'Perusahaan Sewa';
+          return `
+            <span class="badge p-1 text-bg-warning border">Sewa</span>
+            <span>${rentalName}</span>
+          `;
+        }
+      },
+      {
+        data: 'location',
+        name: 'location.name',
+        render: function(data) {
+          return `${escapeHtml(data.name)}`;
+        }
+      },
+      {
+        data: 'fuel_type',
+        name: 'fuel_type',
+        render: function(data) {
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'status',
+        name: 'status',
+        render: function(data) {
+          if (data === 'available') {
+            return '<span class="badge text-bg-success">Tersedia</span>';
+          } else if (data === 'reserved') {
+            return '<span class="badge text-bg-warning text-dark">Dipesan (Reserved)</span>';
+          } else if (data === 'in_use') {
+            return '<span class="badge text-bg-primary">Sedang Digunakan</span>';
+          }
+          return '<span class="badge text-bg-danger">Dalam Service</span>';
+        }
+      }
     ];
 
     if (isAdmin) {
-      vehicleColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+      vehicleColumns.push({
+        data: 'id',
+        name: 'id',
+        orderable: false,
+        searchable: false,
+        width: '1%',
+        className: 'text-center text-nowrap',
+        render: function(data, type, row) {
+          const nameWithPlate = escapeHtml(row.name + ' (' + (row.license_plate || '') + ')');
+          return `
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary btn-edit" data-id="${data}" title="Edit Kendaraan">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-delete" data-id="${data}" data-name="${nameWithPlate}" title="Hapus Kendaraan">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+      });
     }
 
     // 1. Inisialisasi DataTables Server-Side Processing
@@ -195,6 +272,36 @@
       order: [[0, 'desc']]
     });
 
+    // Helper: Refresh Dynamic Form Options via AJAX
+    function refreshVehicleFormOptions(callback) {
+      $.ajax({
+        url: "{{ route('vehicles.options') }}",
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+          if (res.locations) {
+            const locVal = $('#selectLocation').val();
+            let locOpts = '<option value="" disabled selected>-- Pilih Lokasi Pool --</option>';
+            res.locations.forEach(loc => {
+              locOpts += `<option value="${loc.id}">${escapeHtml(loc.name)}</option>`;
+            });
+            $('#selectLocation').html(locOpts);
+            if (locVal) $('#selectLocation').val(locVal);
+          }
+          if (res.rental_companies) {
+            const rentVal = $('#selectRentalCompany').val();
+            let rentOpts = '<option value="" disabled selected>-- Pilih Vendor Rental --</option>';
+            res.rental_companies.forEach(rc => {
+              rentOpts += `<option value="${rc.id}">${escapeHtml(rc.name)}</option>`;
+            });
+            $('#selectRentalCompany').html(rentOpts);
+            if (rentVal) $('#selectRentalCompany').val(rentVal);
+          }
+          if (callback) callback();
+        }
+      });
+    }
+
     // Toggle tampilan Vendor Sewa berdasarkan kepemilikan
     function toggleRentalCompany() {
       if ($('#selectOwnership').val() === 'rented') {
@@ -217,6 +324,7 @@
       $('#formMethod').val('POST');
       $('#formVehicle').attr('action', "{{ route('vehicles.store') }}");
       toggleRentalCompany();
+      refreshVehicleFormOptions();
       vehicleModal.show();
     });
 

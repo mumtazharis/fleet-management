@@ -215,18 +215,112 @@
     const detailModalEl = document.getElementById('detailModal');
     const detailModal = new bootstrap.Modal(detailModalEl);
 
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
+
     // 1. Inisialisasi DataTables Server-Side Processing
     const tableBookings = $('#tableBookings').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('bookings.index') }}",
       columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'code_date', name: 'booking_code' },
-        { data: 'vehicle_driver', name: 'vehicle.name' },
-        { data: 'route', name: 'startLocation.name' },
-        { data: 'status_badge', name: 'status' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
+        { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+        {
+          data: 'booking_code',
+          name: 'booking_code',
+          render: function(data, type, row) {
+            const startDate = row.start_date ? formatDateTime(row.start_date) : '-';
+            const endDate = row.end_date ? formatDateTime(row.end_date) : '-';
+            return `
+              <div class="lh-sm">
+                <strong class="font-monospace d-block">${escapeHtml(data)}</strong>
+                <small class="text-muted"><i class="bi bi-calendar-range me-1"></i>${startDate} - ${endDate}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'vehicle',
+          name: 'vehicle.name',
+          render: function(data, type, row) {
+            const vehicleName = row.vehicle ? `${escapeHtml(row.vehicle.name)} (${escapeHtml(row.vehicle.license_plate)})` : '-';
+            const driverName = row.driver ? escapeHtml(row.driver.name) : '-';
+            return `
+              <div class="lh-sm">
+                <strong class="d-block text-dark fw-semibold"><i class="bi bi-truck me-1"></i>${vehicleName}</strong>
+                <small class="text-secondary"><i class="bi bi-person me-1"></i>Driver: ${driverName}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'start_location',
+          name: 'startLocation.name',
+          render: function(data, type, row) {
+            const startLoc = row.start_location ? escapeHtml(row.start_location.name) : escapeHtml(row.start_address || '-');
+            const destLoc = row.destination_location ? escapeHtml(row.destination_location.name) : escapeHtml(row.destination_address || '-');
+            return `
+              <small class="d-block text-dark fw-semibold"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${startLoc}</small>
+              <small class="d-block text-secondary"><i class="bi bi-arrow-down me-1"></i>${destLoc}</small>
+            `;
+          }
+        },
+        {
+          data: 'status',
+          name: 'status',
+          render: function(data, type, row) {
+            if (data === 'cancelled' || row.deleted_at) {
+              return '<span class="badge p-1 text-bg-secondary">Dibatalkan</span>';
+            } else if (data === 'approved') {
+              return '<span class="badge p-1 text-bg-success">Disetujui</span>';
+            } else if (data === 'rejected') {
+              return '<span class="badge p-1 text-bg-danger">Ditolak</span>';
+            } else if (data === 'completed') {
+              return '<span class="badge p-1 text-bg-info">Selesai</span>';
+            } else if (data === 'in_progress') {
+              return '<span class="badge p-1 text-bg-primary">Berjalan</span>';
+            }
+            return '<span class="badge p-1 text-bg-warning text-dark">Menunggu Approval</span>';
+          }
+        },
+        {
+          data: 'id',
+          name: 'id',
+          orderable: false,
+          searchable: false,
+          width: '1%',
+          className: 'text-center text-nowrap',
+          render: function(data, type, row) {
+            const btnDetail = `
+              <button type="button" class="btn btn-sm btn-outline-info btn-detail" data-id="${data}" title="Detail Pemesanan">
+                <i class="bi bi-eye me-1"></i> Detail
+              </button>
+            `;
+
+            if (!isAdmin || row.status === 'cancelled' || row.deleted_at) {
+              return btnDetail;
+            }
+
+            let btnComplete = '';
+            if (row.status === 'approved' || row.status === 'in_progress') {
+              btnComplete = `
+                <button type="button" class="btn btn-sm btn-success btn-complete ms-1" data-id="${data}" data-code="${escapeHtml(row.booking_code)}" title="Selesaikan Pemesanan">
+                  <i class="bi bi-check2-circle me-1"></i> Selesai
+                </button>
+              `;
+            }
+
+            let btnCancel = '';
+            if (row.status !== 'completed') {
+              btnCancel = `
+                <button type="button" class="btn btn-sm btn-outline-warning btn-cancel ms-1" data-id="${data}" data-code="${escapeHtml(row.booking_code)}" title="Batalkan Pemesanan">
+                  Batalkan
+                </button>
+              `;
+            }
+
+            return `<div class="btn-group btn-group-sm">${btnDetail}${btnComplete}${btnCancel}</div>`;
+          }
+        }
       ],
       language: {
         search: "Cari:",
@@ -246,12 +340,54 @@
       order: [[0, 'desc']]
     });
 
+    // Helper: Refresh Dynamic Form Options via AJAX
+    function refreshBookingOptions(callback) {
+      $.ajax({
+        url: "{{ route('bookings.options') }}",
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+          if (res.available_vehicles) {
+            let vOpts = '<option value="" selected disabled>-- Pilih Kendaraan Tersedia --</option>';
+            res.available_vehicles.forEach(v => {
+              const pool = v.location ? v.location.name : '-';
+              vOpts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | Pool: ${escapeHtml(pool)})</option>`;
+            });
+            $('#selectVehicle').html(vOpts);
+          }
+          if (res.available_drivers) {
+            let dOpts = '<option value="" selected disabled>-- Pilih Driver Tersedia --</option>';
+            res.available_drivers.forEach(d => {
+              const sim = d.license_number ? d.license_number : 'Tanpa No SIM';
+              dOpts += `<option value="${d.id}">${escapeHtml(d.name)} (${escapeHtml(sim)})</option>`;
+            });
+            $('#selectDriver').html(dOpts);
+          }
+          if (res.locations) {
+            let locOpts = '<option value="" selected disabled>-- Pilih Lokasi --</option>';
+            res.locations.forEach(loc => {
+              locOpts += `<option value="${loc.id}">${escapeHtml(loc.name)} (${escapeHtml(loc.type)})</option>`;
+            });
+            const sVal = $('#selectStartLocation').val();
+            const dVal = $('#selectDestinationLocation').val();
+            $('#selectStartLocation').html(locOpts);
+            $('#selectDestinationLocation').html(locOpts);
+            if (sVal) $('#selectStartLocation').val(sVal);
+            if (dVal) $('#selectDestinationLocation').val(dVal);
+          }
+          if (callback) callback(res);
+        }
+      });
+    }
+
     // Tombol Tambah Pemesanan
     $('#btnCreateBooking').on('click', function() {
       $('#formBooking')[0].reset();
       $('#formBooking').removeClass('was-validated');
       $('.invalid-feedback').text('');
-      $('.select2').val('').trigger('change');
+      refreshBookingOptions(function() {
+        $('.select2').val('').trigger('change');
+      });
       bookingModal.show();
     });
 
@@ -276,6 +412,7 @@
           if (response.success) {
             bookingModal.hide();
             tableBookings.ajax.reload(null, false);
+            refreshBookingOptions();
 
             Swal.fire({
               icon: 'success',
@@ -451,6 +588,7 @@
             success: function(response) {
               if (response.success) {
                 tableBookings.ajax.reload(null, false);
+                refreshBookingOptions();
                 Swal.fire({
                   icon: 'success',
                   title: 'Berhasil Selesai!',
@@ -497,6 +635,7 @@
             success: function(response) {
               if (response.success) {
                 tableBookings.ajax.reload(null, false);
+                refreshBookingOptions();
                 Swal.fire({
                   icon: 'success',
                   title: 'Dibatalkan!',

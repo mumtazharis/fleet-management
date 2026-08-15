@@ -30,7 +30,7 @@
           <th class="text-center">No.</th>
           <th>Nama Driver</th>
           <th>Nomor Telepon</th>
-          <th>Nomor SIM</th>
+          <th>SIM</th>
           <th>Status Operasional</th>
           @if(Auth::user()->role?->name === 'admin')
             <th class="text-center">Aksi</th>
@@ -106,15 +106,67 @@
     const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     const driverColumns = [
-      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-      { data: 'driver_name', name: 'name' },
-      { data: 'phone_formatted', name: 'phone' },
-      { data: 'license_badge', name: 'license_number' },
-      { data: 'status_badge', name: 'status' }
+      { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      {
+        data: 'name',
+        name: 'name',
+        render: function(data, type, row) {
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'phone',
+        name: 'phone',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'license_number',
+        name: 'license_number',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'status',
+        name: 'status',
+        render: function(data) {
+          if (data === 'available') {
+            return '<span class="badge text-bg-success">Tersedia</span>';
+          } else if (data === 'reserved') {
+            return '<span class="badge text-bg-warning text-dark">Dipesan (Reserved)</span>';
+          } else if (data === 'on_trip') {
+            return '<span class="badge text-bg-primary">Sedang Bertugas</span>';
+          }
+          return '<span class="badge text-bg-secondary">Libur / Nonaktif</span>';
+        }
+      }
     ];
 
     if (isAdmin) {
-      driverColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+      driverColumns.push({
+        data: 'id',
+        name: 'id',
+        orderable: false,
+        searchable: false,
+        width: '1%',
+        className: 'text-center text-nowrap',
+        render: function(data, type, row) {
+          return `
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary btn-edit" data-id="${data}" title="Edit Driver">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-delete" data-id="${data}" data-name="${escapeHtml(row.name)}" title="Hapus Driver">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+      });
     }
 
     // 1. Inisialisasi DataTables Server-Side Processing

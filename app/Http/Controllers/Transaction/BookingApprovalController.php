@@ -80,7 +80,7 @@ class BookingApprovalController extends Controller
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->filterColumn('booking_code', function ($q, $keyword) {
+                ->filterColumn('booking.booking_code', function ($q, $keyword) {
                     $q->whereHas('booking', function ($b) use ($keyword) {
                         $b->where('booking_code', 'like', "%{$keyword}%")
                           ->orWhereHas('user', function ($u) use ($keyword) {
@@ -88,7 +88,7 @@ class BookingApprovalController extends Controller
                           });
                     });
                 })
-                ->filterColumn('fleet_driver', function ($q, $keyword) {
+                ->filterColumn('booking.vehicle.name', function ($q, $keyword) {
                     $q->whereHas('booking', function ($b) use ($keyword) {
                         $b->whereHas('vehicle', function ($v) use ($keyword) {
                             $v->where('name', 'like', "%{$keyword}%")
@@ -98,7 +98,7 @@ class BookingApprovalController extends Controller
                         });
                     });
                 })
-                ->filterColumn('schedule_route', function ($q, $keyword) {
+                ->filterColumn('booking.start_date', function ($q, $keyword) {
                     $q->whereHas('booking', function ($b) use ($keyword) {
                         $b->whereHas('startLocation', function ($l) use ($keyword) {
                             $l->where('name', 'like', "%{$keyword}%");
@@ -107,115 +107,6 @@ class BookingApprovalController extends Controller
                         });
                     });
                 })
-                ->addColumn('booking_code', function ($app) {
-                    $b = $app->booking;
-                    if (!$b) return '-';
-                    return '
-                        <strong class="text-primary font-monospace d-block">' . e($b->booking_code) . '</strong>
-                        <small class="text-muted"><i class="bi bi-person me-1"></i>Pemohon: ' . e($b->user?->name ?? 'System') . '</small>
-                    ';
-                })
-                ->addColumn('schedule_route', function ($app) {
-                    $b = $app->booking;
-                    if (!$b) return '-';
-                    $startDate = $b->start_date ? $b->start_date->format('d/m/Y H:i') : '-';
-                    $endDate = $b->end_date ? $b->end_date->format('d/m/Y H:i') : '-';
-                    $startLoc = $b->startLocation ? e($b->startLocation->name) : '-';
-                    $destLoc = $b->destinationLocation ? e($b->destinationLocation->name) : '-';
-
-                    return '
-                        <div class="lh-sm">
-                            <small class="d-block text-dark fw-semibold"><i class="bi bi-calendar-range me-1 text-primary"></i>' . $startDate . ' - ' . $endDate . '</small>
-                            <small class="d-block text-secondary mt-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>' . $startLoc . ' &rarr; ' . $destLoc . '</small>
-                        </div>
-                    ';
-                })
-                ->addColumn('fleet_driver', function ($app) {
-                    $b = $app->booking;
-                    if (!$b) return '-';
-                    $vName = $b->vehicle ? e($b->vehicle->name) . ' (' . e($b->vehicle->license_plate) . ')' : '-';
-                    $dName = $b->driver ? e($b->driver->name) : '-';
-                    return '
-                        <div class="lh-sm">
-                            <strong class="d-block text-dark"><i class="bi bi-truck text-warning me-1"></i>' . $vName . '</strong>
-                            <small class="text-secondary"><i class="bi bi-person-badge me-1"></i>Driver: ' . $dName . '</small>
-                        </div>
-                    ';
-                })
-                ->addColumn('approval_level_badge', function ($app) {
-                    $level = $app->approval_level;
-                    $approverName = $app->approver ? e($app->approver->name) : 'User';
-
-                    if ($level == 1) {
-                        return '<span class="badge text-bg-info"><i class="bi bi-shield-check me-1"></i>Level 1 (SPV: ' . $approverName . ')</span>';
-                    }
-                    return '<span class="badge text-bg-primary"><i class="bi bi-award me-1"></i>Level 2 (Manager: ' . $approverName . ')</span>';
-                })
-                ->addColumn('status_badge', function ($app) {
-                    $b = $app->booking;
-                    if ($b && ($b->status === 'cancelled' || $b->trashed())) {
-                        return '<span class="badge text-bg-secondary"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
-                    }
-                    if ($app->status === 'approved') {
-                        return '<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i> Disetujui</span>';
-                    } elseif ($app->status === 'rejected') {
-                        $noteStr = $app->note ? 'Catatan: ' . e($app->note) : '';
-                        return '<span class="badge text-bg-danger" title="' . $noteStr . '"><i class="bi bi-x-circle-fill me-1"></i> Ditolak</span>';
-                    }
-                    return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i> Menunggu Approval</span>';
-                })
-                ->addColumn('action', function ($app) use ($user, $roleName) {
-                    $b = $app->booking;
-                    $bookingId = $b ? $b->id : 0;
-
-                    $btnDetail = '
-                        <button type="button" class="btn btn-outline-info btn-sm btn-detail" data-booking-id="' . $bookingId . '" title="Lihat Detail Pemesanan">
-                            <i class="bi bi-eye me-1"></i> Detail
-                        </button>
-                    ';
-
-                    if ($app->status !== 'pending' || ($b && ($b->status === 'cancelled' || $b->trashed()))) {
-                        return $btnDetail;
-                    }
-
-                    // Check strict authorization:
-                    // Admin cannot process approvals for SPV or Manager unless explicitly set as approver_id
-                    $isAssignedApprover = ($app->approver_id == $user->id);
-                    $hasMatchingLevel = ($user->role?->level == $app->approval_level && $roleName !== 'admin');
-
-                    $canProcess = ($isAssignedApprover || $hasMatchingLevel);
-
-                    // For Level 2, also check Level 1 is approved
-                    if ($app->approval_level == 2) {
-                        $l1Approved = BookingApproval::where('vehicle_booking_id', $app->vehicle_booking_id)
-                            ->where('approval_level', 1)
-                            ->where('status', 'approved')
-                            ->exists();
-                        if (!$l1Approved) {
-                            $canProcess = false;
-                        }
-                    }
-
-                    if (!$canProcess) {
-                        if ($roleName === 'admin') {
-                            return $btnDetail;
-                        }
-                        return $btnDetail;
-                    }
-
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            ' . $btnDetail . '
-                            <button type="button" class="btn btn-success btn-sm btn-approve" data-id="' . $app->id . '" data-code="' . e($b?->booking_code) . '" title="Setujui Pemesanan">
-                                <i class="bi bi-check-lg me-1"></i> Setujui
-                            </button>
-                            <button type="button" class="btn btn-danger btn-sm btn-reject" data-id="' . $app->id . '" data-code="' . e($b?->booking_code) . '" title="Tolak Pemesanan">
-                                <i class="bi bi-x-lg me-1"></i> Tolak
-                            </button>
-                        </div>
-                    ';
-                })
-                ->rawColumns(['booking_code', 'schedule_route', 'fleet_driver', 'approval_level_badge', 'status_badge', 'action'])
                 ->make(true);
         }
 

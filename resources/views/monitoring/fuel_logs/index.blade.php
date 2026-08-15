@@ -31,7 +31,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">TOTAL BIAYA BBM</small>
-          <h5 class="mb-0 fw-bold text-dark">Rp {{ number_format($totalCost, 0, ',', '.') }}</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statTotalFuelCost">Rp {{ number_format($totalCost, 0, ',', '.') }}</h5>
         </div>
       </div>
     </div>
@@ -45,7 +45,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">TOTAL VOLUME BBM</small>
-          <h5 class="mb-0 fw-bold text-dark">{{ number_format($totalLiters, 2, ',', '.') }} Liter</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statTotalFuelLiters">{{ number_format($totalLiters, 2, ',', '.') }} Liter</h5>
         </div>
       </div>
     </div>
@@ -59,7 +59,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">TOTAL TRANSAKSI</small>
-          <h5 class="mb-0 fw-bold text-dark">{{ number_format($totalTransactions, 0, ',', '.') }} Pengisian</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statTotalFuelTransactions">{{ number_format($totalTransactions, 0, ',', '.') }} Pengisian</h5>
         </div>
       </div>
     </div>
@@ -74,11 +74,12 @@
         <tr>
           <th class="text-center">No.</th>
           <th>Tanggal</th>
-          <th>Kendaraan & BBM</th>
+          <th>Kendaraan</th>
+          <th>BBM</th>
           <th>Jumlah Liter</th>
-          <th>Biaya (Harga/L & Total)</th>
+          <th>Harga</th>
+          <th>Total</th>
           <th>Odometer</th>
-          <th>Inputor</th>
           <th class="text-center">Aksi</th>
         </tr>
       </thead>
@@ -218,7 +219,7 @@
     const detailModalEl = document.getElementById('detailFuelLogModal');
     const detailModal = new bootstrap.Modal(detailModalEl);
 
-    let editFuelLogId = null;
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     // 1. DataTables Server-Side Processing
     const tableFuelLogs = $('#tableFuelLogs').DataTable({
@@ -226,14 +227,91 @@
       serverSide: true,
       ajax: "{{ route('fuel-logs.index') }}",
       columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'formatted_date', name: 'date' },
-        { data: 'vehicle_info', name: 'vehicle.name' },
-        { data: 'fuel_amount_formatted', name: 'fuel_amount' },
-        { data: 'cost_info', name: 'total_cost' },
-        { data: 'odometer_formatted', name: 'odometer_reading' },
-        { data: 'creator_name', name: 'creator.name' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
+        { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+        {
+          data: 'date',
+          name: 'date',
+          render: function(data) {
+            return formatDate(data);
+          }
+        },
+        {
+          data: 'vehicle',
+          name: 'vehicle.name',
+          render: function(data, type, row) {
+            const vName = row.vehicle ? escapeHtml(row.vehicle.name) : 'Kendaraan Terhapus';
+            const plate = row.vehicle ? escapeHtml(row.vehicle.license_plate) : '-';
+            return `<strong>${vName}</strong> <small class="text-muted">(${plate})</small>`;
+          }
+        },
+        {
+          data: 'vehicle',
+          name: 'vehicle.fuel_type',
+          render: function(data, type, row) {
+            return row.vehicle && row.vehicle.fuel_type ? escapeHtml(row.vehicle.fuel_type) : '-';
+          }
+        },
+        {
+          data: 'fuel_amount',
+          name: 'fuel_amount',
+          render: function(data) {
+            return `${formatNumber(data, 2)} L`;
+          }
+        },
+        {
+          data: 'fuel_price',
+          name: 'fuel_price',
+          render: function(data) {
+            return formatRupiah(data);
+          }
+        },
+        {
+          data: 'total_cost',
+          name: 'total_cost',
+          render: function(data) {
+            return formatRupiah(data);
+          }
+        },
+        {
+          data: 'odometer_reading',
+          name: 'odometer_reading',
+          render: function(data) {
+            return data ? `${formatNumber(data)} KM` : '-';
+          }
+        },
+        {
+          data: 'id',
+          name: 'id',
+          orderable: false,
+          searchable: false,
+          width: '1%',
+          className: 'text-center text-nowrap',
+          render: function(data, type, row) {
+            const btnDetail = `
+              <button type="button" class="btn btn-outline-info btn-sm btn-detail me-1" data-id="${data}" title="Rincian Pengisian">
+                <i class="bi bi-eye"></i> Detail
+              </button>
+            `;
+
+            if (!isAdmin) {
+              return btnDetail;
+            }
+
+            const vName = escapeHtml(row.vehicle ? row.vehicle.name : 'Kendaraan');
+
+            return `
+              <div class="btn-group btn-group-sm">
+                ${btnDetail}
+                <button type="button" class="btn btn-outline-warning btn-sm btn-edit me-1" data-id="${data}" title="Edit Pencatatan">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm btn-delete" data-id="${data}" data-vehicle="${vName}" title="Hapus Pencatatan">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            `;
+          }
+        }
       ],
       language: {
         search: "Cari:",
@@ -253,6 +331,33 @@
       order: [[1, 'desc']]
     });
 
+    // Helper: Refresh Dynamic Form Options & Stat Cards via AJAX
+    function refreshFuelOptionsAndStats(callback) {
+      $.ajax({
+        url: "{{ route('fuel-logs.options') }}",
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+          if (res.stats) {
+            $('#statTotalFuelCost').text(formatRupiah(res.stats.total_cost));
+            $('#statTotalFuelLiters').text(formatNumber(res.stats.total_liters, 2) + ' Liter');
+            $('#statTotalFuelTransactions').text(formatNumber(res.stats.total_transactions) + ' Pengisian');
+          }
+          if (res.vehicles) {
+            const currentVal = $('#selectVehicle').val();
+            let opts = '<option value="" selected disabled>-- Pilih Kendaraan Operasional --</option>';
+            res.vehicles.forEach(v => {
+              const locName = v.location ? v.location.name : '-';
+              opts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | BBM: ${escapeHtml(v.fuel_type)} | Pool: ${escapeHtml(locName)})</option>`;
+            });
+            $('#selectVehicle').html(opts);
+            if (currentVal) $('#selectVehicle').val(currentVal);
+          }
+          if (callback) callback(res);
+        }
+      });
+    }
+
     // Auto compute total cost on input
     function calculateTotalCost() {
       const amount = parseFloat($('#inputFuelAmount').val()) || 0;
@@ -266,7 +371,6 @@
 
     // Tombol Tambah BBM
     $('#btnCreateFuelLog').on('click', function() {
-      editFuelLogId = null;
       $('#modalTitle').text('Catat Pengisian BBM Baru');
       $('#formFuelLog')[0].reset();
       $('#formMethod').val('POST');
@@ -274,7 +378,9 @@
       $('#formFuelLog').removeClass('was-validated');
       $('.invalid-feedback').text('');
       $('#inputDate').val(new Date().toISOString().split('T')[0]);
-      $('.select2').val('').trigger('change');
+      refreshFuelOptionsAndStats(function() {
+        $('#selectVehicle').val('').trigger('change');
+      });
       fuelLogModal.show();
     });
 
@@ -299,6 +405,7 @@
           if (response.success) {
             fuelLogModal.hide();
             tableFuelLogs.ajax.reload(null, false);
+            refreshFuelOptionsAndStats();
 
             Swal.fire({
               icon: 'success',
@@ -328,7 +435,6 @@
     // Tombol Edit
     $(document).on('click', '.btn-edit', function() {
       const id = $(this).data('id');
-      editFuelLogId = id;
       const url = "{{ url('fuel-logs') }}/" + id;
 
       $('#modalTitle').text('Edit Pencatatan Konsumsi BBM');
@@ -357,21 +463,6 @@
       });
     });
 
-    // Helper format datetime / date
-    function formatDateStr(dateStr) {
-      if (!dateStr) return '-';
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-
-    function formatRupiah(num) {
-      return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
-    }
-
     // Tombol Detail
     $(document).on('click', '.btn-detail', function() {
       const id = $(this).data('id');
@@ -385,10 +476,10 @@
         type: 'GET',
         dataType: 'json',
         success: function(data) {
-          const vehicleName = data.vehicle ? `${data.vehicle.name} (${data.vehicle.license_plate})` : 'Kendaraan Terhapus';
-          const vehiclePool = data.vehicle && data.vehicle.location ? data.vehicle.location.name : '-';
-          const fuelType = data.vehicle && data.vehicle.fuel_type ? data.vehicle.fuel_type : '-';
-          const creatorName = data.creator ? data.creator.name : 'Sistem';
+          const vehicleName = data.vehicle ? `${escapeHtml(data.vehicle.name)} (${escapeHtml(data.vehicle.license_plate)})` : 'Kendaraan Terhapus';
+          const vehiclePool = data.vehicle && data.vehicle.location ? escapeHtml(data.vehicle.location.name) : '-';
+          const fuelType = data.vehicle && data.vehicle.fuel_type ? escapeHtml(data.vehicle.fuel_type) : '-';
+          const creatorName = data.creator ? escapeHtml(data.creator.name) : 'Sistem';
 
           const html = `
             <div class="row g-3">
@@ -397,8 +488,8 @@
               </div>
               <div class="col-md-6 mt-1">
                 <div class="p-3 rounded-3 h-100 border">
-                  <div class="mb-2"><strong>Tanggal Pengisian:</strong> <span class="text-primary fw-bold">${formatDateStr(data.date)}</span></div>
-                  <div class="mb-2"><strong>Jumlah BBM:</strong> <span class="fw-bold text-dark">${Number(data.fuel_amount).toLocaleString('id-ID')} Liter</span></div>
+                  <div class="mb-2"><strong>Tanggal Pengisian:</strong> <span class="text-primary fw-bold">${formatDate(data.date)}</span></div>
+                  <div class="mb-2"><strong>Jumlah BBM:</strong> <span class="fw-bold text-dark">${formatNumber(data.fuel_amount, 2)} Liter</span></div>
                   <div class="mb-2"><strong>Harga / Liter:</strong> ${formatRupiah(data.fuel_price)}</div>
                   <div class="mb-2"><strong>Total Biaya:</strong> <span class="text-success fw-bold fs-6">${formatRupiah(data.total_cost)}</span></div>
                 </div>
@@ -408,7 +499,7 @@
                   <div class="mb-2"><strong>Kendaraan:</strong> ${vehicleName}</div>
                   <div class="mb-2"><strong>Jenis BBM:</strong> ${fuelType}</div>
                   <div class="mb-2"><strong>Lokasi Pool:</strong> ${vehiclePool}</div>
-                  <div class="mb-2"><strong>Odometer:</strong> ${data.odometer_reading ? Number(data.odometer_reading).toLocaleString('id-ID') + ' KM' : '-'}</div>
+                  <div class="mb-2"><strong>Odometer:</strong> ${data.odometer_reading ? formatNumber(data.odometer_reading) + ' KM' : '-'}</div>
                 </div>
               </div>
               <div class="col-12 mt-3">
@@ -456,6 +547,7 @@
             success: function(response) {
               if (response.success) {
                 tableFuelLogs.ajax.reload(null, false);
+                refreshFuelOptionsAndStats();
                 Swal.fire({
                   icon: 'success',
                   title: 'Terhapus!',

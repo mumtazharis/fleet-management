@@ -24,65 +24,12 @@ class FuelLogController extends Controller
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('formatted_date', function ($log) {
-                    return $log->date ? $log->date->format('d/m/Y') : '-';
+                ->filterColumn('vehicle.name', function ($query, $keyword) {
+                    $query->whereHas('vehicle', function ($q) use ($keyword) {
+                        $q->where('name', 'like', "%{$keyword}%")
+                          ->orWhere('license_plate', 'like', "%{$keyword}%");
+                    });
                 })
-                ->addColumn('vehicle_info', function ($log) {
-                    $vName = $log->vehicle ? e($log->vehicle->name) : 'Kendaraan Terhapus';
-                    $plate = $log->vehicle ? e($log->vehicle->license_plate) : '-';
-                    $fuelType = $log->vehicle ? e($log->vehicle->fuel_type) : '-';
-                    return '
-                        <div class="lh-sm">
-                            <strong class="d-block text-dark"><i class="bi bi-truck text-warning me-1"></i>' . $vName . ' (' . $plate . ')</strong>
-                            <small class="text-muted"><i class="bi bi-fuel-pump me-1"></i>BBM: ' . $fuelType . '</small>
-                        </div>
-                    ';
-                })
-                ->addColumn('fuel_amount_formatted', function ($log) {
-                    return '<span class="fw-bold text-dark">' . number_format($log->fuel_amount, 2, ',', '.') . ' Liter</span>';
-                })
-                ->addColumn('cost_info', function ($log) {
-                    $priceStr = 'Rp ' . number_format($log->fuel_price, 0, ',', '.');
-                    $totalStr = 'Rp ' . number_format($log->total_cost, 0, ',', '.');
-                    return '
-                        <div class="lh-sm">
-                            <strong class="text-success d-block">' . $totalStr . '</strong>
-                            <small class="text-muted">(' . $priceStr . ' / Liter)</small>
-                        </div>
-                    ';
-                })
-                ->addColumn('odometer_formatted', function ($log) {
-                    return $log->odometer_reading ? number_format($log->odometer_reading, 0, ',', '.') . ' KM' : '-';
-                })
-                ->addColumn('creator_name', function ($log) {
-                    return $log->creator ? e($log->creator->name) : 'Sistem';
-                })
-                ->addColumn('action', function ($log) {
-                    $isAdmin = Auth::user()->role?->name === 'admin';
-                    
-                    $btnDetail = '
-                        <button type="button" class="btn btn-outline-info btn-sm btn-detail me-1" data-id="' . $log->id . '" title="Rincian Pengisian">
-                            <i class="bi bi-eye"></i> Detail
-                        </button>
-                    ';
-
-                    if (!$isAdmin) {
-                        return $btnDetail;
-                    }
-
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            ' . $btnDetail . '
-                            <button type="button" class="btn btn-outline-warning btn-sm btn-edit me-1" data-id="' . $log->id . '" title="Edit Pencatatan">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-sm btn-delete" data-id="' . $log->id . '" data-vehicle="' . e($log->vehicle?->name ?? 'Kendaraan') . '" title="Hapus Pencatatan">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    ';
-                })
-                ->rawColumns(['vehicle_info', 'fuel_amount_formatted', 'cost_info', 'action'])
                 ->make(true);
         }
 
@@ -95,6 +42,21 @@ class FuelLogController extends Controller
         $vehicles = Vehicle::orderBy('name')->get();
 
         return view('monitoring.fuel_logs.index', compact('vehicles', 'totalCost', 'totalLiters', 'totalTransactions'));
+    }
+
+    /**
+     * Get dynamic options and stats for fuel logs (AJAX).
+     */
+    public function options()
+    {
+        return response()->json([
+            'vehicles' => Vehicle::with('location')->orderBy('name')->get(),
+            'stats' => [
+                'total_cost' => (float) FuelLog::sum('total_cost'),
+                'total_liters' => (float) FuelLog::sum('fuel_amount'),
+                'total_transactions' => FuelLog::count(),
+            ]
+        ]);
     }
 
     /**

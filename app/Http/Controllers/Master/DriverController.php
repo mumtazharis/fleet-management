@@ -19,58 +19,9 @@ class DriverController extends Controller
     {
         if ($request->ajax()) {
             $query = Driver::query();
-            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('driver_name', function ($driver) {
-                    return '
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="avatar-icon bg-info bg-opacity-10 text-info rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px;">
-                                <i class="bi bi-person-fill"></i>
-                            </div>
-                            <strong class="text-dark">' . e($driver->name) . '</strong>
-                        </div>
-                    ';
-                })
-                ->addColumn('phone_formatted', function ($driver) {
-                    if (!$driver->phone) {
-                        return '<span class="text-muted italic">-</span>';
-                    }
-                    return '<i class="bi bi-telephone text-primary me-1"></i> ' . e($driver->phone);
-                })
-                ->addColumn('license_badge', function ($driver) {
-                    if (!$driver->license_number) {
-                        return '<span class="text-muted italic">-</span>';
-                    }
-                    return '<span class="badge text-bg-dark font-monospace"><i class="bi bi-card-heading me-1"></i>' . e($driver->license_number) . '</span>';
-                })
-                ->addColumn('status_badge', function ($driver) {
-                    if ($driver->status === 'available') {
-                        return '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i> Tersedia</span>';
-                    } elseif ($driver->status === 'reserved') {
-                        return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock-history me-1"></i> Dipesan (Reserved)</span>';
-                    } elseif ($driver->status === 'on_trip') {
-                        return '<span class="badge text-bg-primary"><i class="bi bi-truck me-1"></i> Sedang Bertugas</span>';
-                    }
-                    return '<span class="badge text-bg-secondary"><i class="bi bi-person-x me-1"></i> Libur / Nonaktif</span>';
-                })
-                ->addColumn('action', function ($driver) use ($isAdmin) {
-                    if (!$isAdmin) {
-                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
-                    }
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $driver->id . '" title="Edit Driver">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-delete" data-id="' . $driver->id . '" data-name="' . e($driver->name) . '" title="Hapus Driver">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    ';
-                })
-                ->rawColumns(['driver_name', 'phone_formatted', 'license_badge', 'status_badge', 'action'])
                 ->make(true);
         }
 

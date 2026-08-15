@@ -83,6 +83,49 @@
 
   <!-- Global Initialization Script -->
   <script>
+    // Global Formatting & Escaping Utility Functions
+    window.escapeHtml = function(text) {
+      if (text === null || text === undefined) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
+
+    window.formatRupiah = function(amount) {
+      if (amount === null || amount === undefined || isNaN(amount)) return 'Rp 0';
+      return 'Rp ' + Number(amount).toLocaleString('id-ID');
+    };
+
+    window.formatNumber = function(num, decimals = 0) {
+      if (num === null || num === undefined || isNaN(num)) return '0';
+      return Number(num).toLocaleString('id-ID', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    };
+
+    window.formatDate = function(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+
+    window.formatDateTime = function(dateStr) {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      const hours = String(d.getHours()).padStart(2, '0');
+      const mins = String(d.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${mins}`;
+    };
+
     $(document).ready(function() {
       // CSRF token setup for AJAX
       $.ajaxSetup({

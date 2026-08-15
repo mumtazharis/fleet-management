@@ -29,12 +29,15 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
     // Master Data Routes
+    Route::get('/vehicles-options', [VehicleController::class, 'options'])->name('vehicles.options');
     Route::resource('vehicles', VehicleController::class);
     Route::resource('drivers', DriverController::class);
     Route::resource('rental-companies', RentalCompanyController::class);
+    Route::get('/locations-options', [LocationController::class, 'options'])->name('locations.options');
     Route::resource('locations', LocationController::class);
 
     // Transaction Routes (Pemesanan Kendaraan & Persetujuan Berjenjang)
+    Route::get('/bookings-options', [VehicleBookingController::class, 'options'])->name('bookings.options');
     Route::post('/bookings/{booking}/complete', [VehicleBookingController::class, 'complete'])->name('bookings.complete');
     Route::resource('bookings', VehicleBookingController::class);
 
@@ -43,7 +46,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/approvals/{approval}/reject', [BookingApprovalController::class, 'reject'])->name('approvals.reject');
 
     // Monitoring Routes
+    Route::get('/fuel-logs-options', [FuelLogController::class, 'options'])->name('fuel-logs.options');
     Route::resource('fuel-logs', FuelLogController::class);
+    Route::get('/service-logs-options', [ServiceLogController::class, 'options'])->name('service-logs.options');
     Route::post('/service-logs/{service_log}/complete', [ServiceLogController::class, 'complete'])->name('service-logs.complete');
     Route::post('/service-logs/{service_log}/cancel', [ServiceLogController::class, 'cancel'])->name('service-logs.cancel');
     Route::resource('service-logs', ServiceLogController::class);

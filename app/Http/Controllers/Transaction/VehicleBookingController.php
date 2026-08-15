@@ -33,92 +33,36 @@ class VehicleBookingController extends Controller
                 'approvals.approver'
             ])->select('vehicle_bookings.*');
 
-            $isAdmin = Auth::user()->role?->name === 'admin';
-
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('code_date', function ($b) {
-                    $startDate = $b->start_date ? $b->start_date->format('d/m/Y H:i') : '-';
-                    $endDate = $b->end_date ? $b->end_date->format('d/m/Y H:i') : '-';
-                    return '
-                        <strong class="text-primary font-monospace d-block">' . e($b->booking_code) . '</strong>
-                        <small class="text-muted"><i class="bi bi-calendar-range me-1"></i>' . $startDate . ' - ' . $endDate . '</small>
-                    ';
+                ->filterColumn('vehicle.name', function ($query, $keyword) {
+                    $query->whereHas('vehicle', function ($q) use ($keyword) {
+                        $q->where('name', 'like', "%{$keyword}%")
+                          ->orWhere('license_plate', 'like', "%{$keyword}%");
+                    });
                 })
-                ->addColumn('vehicle_driver', function ($b) {
-                    $vehicleName = $b->vehicle ? e($b->vehicle->name) . ' (' . e($b->vehicle->license_plate) . ')' : '-';
-                    $driverName = $b->driver ? e($b->driver->name) : '-';
-                    return '
-                        <div class="lh-sm">
-                            <strong class="d-block text-dark"><i class="bi bi-truck text-warning me-1"></i>' . $vehicleName . '</strong>
-                            <small class="text-secondary"><i class="bi bi-person me-1"></i>Driver: ' . $driverName . '</small>
-                        </div>
-                    ';
+                ->filterColumn('driver.name', function ($query, $keyword) {
+                    $query->whereHas('driver', function ($q) use ($keyword) {
+                        $q->where('name', 'like', "%{$keyword}%");
+                    });
                 })
-                ->addColumn('route', function ($b) {
-                    $startLoc = $b->startLocation ? e($b->startLocation->name) : e($b->start_address ?? '-');
-                    $destLoc = $b->destinationLocation ? e($b->destinationLocation->name) : e($b->destination_address ?? '-');
-                    return '
-                        <small class="d-block text-dark fw-semibold"><i class="bi bi-geo-alt-fill text-danger me-1"></i>' . $startLoc . '</small>
-                        <small class="d-block text-secondary"><i class="bi bi-arrow-down me-1"></i>' . $destLoc . '</small>
-                    ';
+                ->filterColumn('startLocation.name', function ($query, $keyword) {
+                    $query->whereHas('startLocation', function ($q) use ($keyword) {
+                        $q->where('name', 'like', "%{$keyword}%");
+                    });
                 })
-                ->addColumn('status_badge', function ($b) {
-                    if ($b->status === 'cancelled' || $b->trashed()) {
-                        return '<span class="badge text-bg-secondary"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
-                    } elseif ($b->status === 'approved') {
-                        return '<span class="badge text-bg-success"><i class="bi bi-check-all me-1"></i> Disetujui</span>';
-                    } elseif ($b->status === 'rejected') {
-                        return '<span class="badge text-bg-danger"><i class="bi bi-x-lg me-1"></i> Ditolak</span>';
-                    } elseif ($b->status === 'completed') {
-                        return '<span class="badge text-bg-info"><i class="bi bi-flag-fill me-1"></i> Selesai</span>';
-                    } elseif ($b->status === 'in_progress') {
-                        return '<span class="badge text-bg-primary"><i class="bi bi-truck me-1"></i> Berjalan</span>';
-                    }
-                    return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i> Menunggu Approval</span>';
-                })
-                ->addColumn('action', function ($b) use ($isAdmin) {
-                    $btnDetail = '
-                        <button type="button" class="btn btn-sm btn-outline-info btn-detail" data-id="' . $b->id . '" title="Detail Pemesanan">
-                            <i class="bi bi-eye me-1"></i> Detail
-                        </button>
-                    ';
-
-                    if (!$isAdmin || $b->status === 'cancelled' || $b->trashed()) {
-                        return $btnDetail;
-                    }
-
-                    $btnComplete = '';
-                    if (in_array($b->status, ['approved', 'in_progress'])) {
-                        $btnComplete = '
-                            <button type="button" class="btn btn-sm btn-success btn-complete ms-1" data-id="' . $b->id . '" data-code="' . e($b->booking_code) . '" title="Selesaikan Pemesanan">
-                                <i class="bi bi-check2-circle me-1"></i> Selesai
-                            </button>
-                        ';
-                    }
-
-                    $btnCancel = '';
-                    if ($b->status !== 'completed') {
-                        $btnCancel = '
-                            <button type="button" class="btn btn-sm btn-outline-warning btn-cancel ms-1" data-id="' . $b->id . '" data-code="' . e($b->booking_code) . '" title="Batalkan Pemesanan">
-                                Batalkan
-                            </button>
-                        ';
-                    }
-
-                    return '<div class="btn-group btn-group-sm">' . $btnDetail . $btnComplete . $btnCancel . '</div>';
-                })
-                ->rawColumns(['code_date', 'vehicle_driver', 'route', 'approvals_status', 'status_badge', 'action'])
                 ->make(true);
         }
 
         // Available Vehicles Query: Status must be 'available'
         $availableVehicles = Vehicle::where('status', 'available')
             ->with('location')
+            ->orderBy('name')
             ->get();
 
         // Available Drivers Query: Status must be 'available'
         $availableDrivers = Driver::where('status', 'available')
+            ->orderBy('name')
             ->get();
 
         // Locations
@@ -137,6 +81,24 @@ class VehicleBookingController extends Controller
             })->get();
 
         return view('transactions.bookings.index', compact('availableVehicles', 'availableDrivers', 'locations', 'approversL1', 'approversL2'));
+    }
+
+    /**
+     * Get dynamic options for booking forms (AJAX).
+     */
+    public function options()
+    {
+        return response()->json([
+            'available_vehicles' => Vehicle::where('status', 'available')->with('location')->orderBy('name')->get(),
+            'available_drivers' => Driver::where('status', 'available')->orderBy('name')->get(),
+            'locations' => Location::orderBy('name')->get(),
+            'approvers_l1' => User::with('role')->whereHas('role', function ($q) {
+                $q->where('level', 1)->orWhere('name', 'supervisor');
+            })->get(),
+            'approvers_l2' => User::with('role')->whereHas('role', function ($q) {
+                $q->where('level', 2)->orWhere('name', 'manager');
+            })->get(),
+        ]);
     }
 
     /**

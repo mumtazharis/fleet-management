@@ -24,77 +24,12 @@ class ServiceLogController extends Controller
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('formatted_service_date', function ($log) {
-                    return $log->service_date ? $log->service_date->format('d/m/Y') : '-';
+                ->filterColumn('vehicle.name', function ($query, $keyword) {
+                    $query->whereHas('vehicle', function ($q) use ($keyword) {
+                        $q->where('name', 'like', "%{$keyword}%")
+                          ->orWhere('license_plate', 'like', "%{$keyword}%");
+                    });
                 })
-                ->addColumn('vehicle_info', function ($log) {
-                    $vName = $log->vehicle ? e($log->vehicle->name) : 'Kendaraan Terhapus';
-                    $plate = $log->vehicle ? e($log->vehicle->license_plate) : '-';
-                    $location = $log->vehicle && $log->vehicle->location ? e($log->vehicle->location->name) : '-';
-
-                    return '
-                        <div class="lh-sm">
-                            <strong class="d-block text-dark"><i class="bi bi-truck text-warning me-1"></i>' . $vName . ' (' . $plate . ')</strong>
-                            <small class="text-muted"><i class="bi bi-geo-alt me-1"></i>Pool: ' . $location . '</small>
-                        </div>
-                    ';
-                })
-                ->addColumn('service_type_badge', function ($log) {
-                    $type = e($log->service_type);
-                    if (str_contains(strtolower($type), 'oli')) {
-                        return '<span class="badge text-bg-info"><i class="bi bi-droplet-fill me-1"></i>' . $type . '</span>';
-                    } elseif (str_contains(strtolower($type), 'rutin')) {
-                        return '<span class="badge text-bg-primary"><i class="bi bi-arrow-repeat me-1"></i>' . $type . '</span>';
-                    } elseif (str_contains(strtolower($type), 'berat') || str_contains(strtolower($type), 'overhaul')) {
-                        return '<span class="badge text-bg-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>' . $type . '</span>';
-                    }
-                    return '<span class="badge text-bg-secondary"><i class="bi bi-wrench me-1"></i>' . $type . '</span>';
-                })
-                ->addColumn('cost_formatted', function ($log) {
-                    return '<span class="fw-bold text-success">Rp ' . number_format($log->cost, 0, ',', '.') . '</span>';
-                })
-                ->addColumn('status_badge', function ($log) {
-                    if ($log->status === 'completed') {
-                        return '<span class="badge text-bg-success fs-6"><i class="bi bi-check-circle-fill me-1"></i> Selesai</span>';
-                    } elseif ($log->status === 'cancelled') {
-                        return '<span class="badge text-bg-secondary fs-6"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
-                    }
-                    return '<span class="badge text-bg-warning text-dark fs-6"><i class="bi bi-gear-wide-connected me-1"></i> Dalam Servis</span>';
-                })
-                ->addColumn('action', function ($log) {
-                    $isAdmin = Auth::user()->role?->name === 'admin';
-
-                    $btnDetail = '
-                        <button type="button" class="btn btn-outline-info btn-sm btn-detail" data-id="' . $log->id . '" title="Rincian Servis">
-                            <i class="bi bi-eye me-1"></i> Detail
-                        </button>
-                    ';
-
-                    if (!$isAdmin || $log->status !== 'in_progress') {
-                        return $btnDetail;
-                    }
-
-                    $btnComplete = '
-                        <button type="button" class="btn btn-success btn-sm btn-complete-service ms-1" data-id="' . $log->id . '" data-vehicle="' . e($log->vehicle?->name ?? 'Kendaraan') . '" title="Selesaikan Servis & Kembalikan Status Armada ke Tersedia">
-                            <i class="bi bi-check2-circle me-1"></i> Selesai
-                        </button>
-                    ';
-
-                    $btnEdit = '
-                        <button type="button" class="btn btn-outline-warning btn-sm btn-edit ms-1" data-id="' . $log->id . '" title="Edit Servis">
-                            <i class="bi bi-pencil me-1"></i> Edit
-                        </button>
-                    ';
-
-                    $btnCancel = '
-                        <button type="button" class="btn btn-outline-danger btn-sm btn-cancel-service ms-1" data-id="' . $log->id . '" data-vehicle="' . e($log->vehicle?->name ?? 'Kendaraan') . '" title="Batalkan Servis">
-                            <i class="bi bi-x-circle me-1"></i> Batalkan
-                        </button>
-                    ';
-
-                    return '<div class="btn-group btn-group-sm">' . $btnDetail . $btnComplete . $btnEdit . $btnCancel . '</div>';
-                })
-                ->rawColumns(['vehicle_info', 'service_type_badge', 'cost_formatted', 'status_badge', 'action'])
                 ->make(true);
         }
 
@@ -104,9 +39,25 @@ class ServiceLogController extends Controller
         $inMaintenanceCount = ServiceLog::where('status', 'in_progress')->count();
 
         // Dropdown Vehicles: ONLY AVAILABLE VEHICLES FOR INPUT SERVICE!
-        $availableVehicles = Vehicle::where('status', 'available')->orderBy('name')->get();
+        $availableVehicles = Vehicle::where('status', 'available')->with('location')->orderBy('name')->get();
 
         return view('monitoring.service_logs.index', compact('availableVehicles', 'totalCost', 'totalServices', 'inMaintenanceCount'));
+    }
+
+    /**
+     * Get dynamic options and stats for service logs (AJAX).
+     */
+    public function options()
+    {
+        return response()->json([
+            'available_vehicles' => Vehicle::where('status', 'available')->with('location')->orderBy('name')->get(),
+            'all_vehicles' => Vehicle::with('location')->orderBy('name')->get(),
+            'stats' => [
+                'total_cost' => (float) ServiceLog::sum('cost'),
+                'total_services' => ServiceLog::count(),
+                'in_maintenance_count' => ServiceLog::where('status', 'in_progress')->count(),
+            ]
+        ]);
     }
 
     /**

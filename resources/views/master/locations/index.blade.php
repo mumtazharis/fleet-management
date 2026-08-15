@@ -10,7 +10,7 @@
     <div>
       <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-folder2-open"></i> Master Data</p>
       <h1 class="h3 mb-1">Data Master Lokasi & Region</h1>
-      <p class="text-muted mb-0">Kelola lokasi operasional (1 Kantor Pusat, 1 Kantor Cabang, dan 6 Lokasi Tambang) serta pembagian wilayah (Region).</p>
+      <p class="text-muted mb-0">Kelola lokasi operasional.</p>
     </div>
   </div>
 
@@ -29,6 +29,7 @@
         <tr>
           <th class="text-center">No.</th>
           <th>Nama Lokasi</th>
+          <th>Kendaraan</th>
           <th>Wilayah / Region</th>
           <th>Tipe Lokasi</th>
           <th>Alamat Lengkap</th>
@@ -119,15 +120,74 @@
     const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     const locationColumns = [
-      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-      { data: 'location_name', name: 'name' },
-      { data: 'region_name', name: 'region.name' },
-      { data: 'type_badge', name: 'type' },
-      { data: 'address_formatted', name: 'address' }
+      { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      {
+        data: 'name',
+        name: 'name',
+        render: function(data) {
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'vehicles_count',
+        name: 'vehicles_count',
+        className: 'text-center',
+        render: function(data, type, row) {
+          const vCount = row.vehicles_count ?? 0;
+          return `${vCount}`;
+        }
+      },
+      {
+        data: 'region',
+        name: 'region.name',
+        render: function(data) {
+          if (!data || !data.name) return '<span class="text-muted fst-italic">-</span>';
+          return `${escapeHtml(data.name)}`;
+        }
+      },
+      {
+        data: 'type',
+        name: 'type',
+        render: function(data) {
+          if (data === 'head_office') {
+            return 'Kantor Pusat';
+          } else if (data === 'branch_office') {
+            return 'Kantor Cabang';
+          }
+          return 'Lokasi Tambang';
+        }
+      },
+      {
+        data: 'address',
+        name: 'address',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `<small class="text-secondary">${escapeHtml(data)}</small>`;
+        }
+      }
     ];
 
     if (isAdmin) {
-      locationColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+      locationColumns.push({
+        data: 'id',
+        name: 'id',
+        orderable: false,
+        searchable: false,
+        width: '1%',
+        className: 'text-center text-nowrap',
+        render: function(data, type, row) {
+          return `
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary btn-edit" data-id="${data}" title="Edit Lokasi">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-delete" data-id="${data}" data-name="${escapeHtml(row.name)}" title="Hapus Lokasi">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+      });
     }
 
     // 1. Inisialisasi DataTables Server-Side Processing

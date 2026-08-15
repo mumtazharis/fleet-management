@@ -87,23 +87,6 @@
 </div>
 @endsection
 
-@section('styles')
-<style>
-  #tableApprovals th:first-child,
-  #tableApprovals td:first-child {
-    width: 40px !important;
-    max-width: 40px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    text-align: center;
-  }
-  #tableApprovals th:first-child::before,
-  #tableApprovals th:first-child::after {
-    display: none !important;
-  }
-</style>
-@endsection
-
 @section('scripts')
 <script>
   $(document).ready(function() {
@@ -112,19 +95,144 @@
     const detailModalEl = document.getElementById('detailBookingModal');
     const detailModal = new bootstrap.Modal(detailModalEl);
 
+    const currentUserId = {{ Auth::id() }};
+    const currentUserRole = @json(strtolower(Auth::user()->role?->name ?? ''));
+    const currentUserLevel = {{ Auth::user()->role?->level ?? 0 }};
+
     // 1. DataTables Server-Side Processing
     const tableApprovals = $('#tableApprovals').DataTable({
       processing: true,
       serverSide: true,
       ajax: "{{ route('approvals.index') }}",
       columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'booking_code', name: 'booking.booking_code' },
-        { data: 'schedule_route', name: 'booking.start_date' },
-        { data: 'fleet_driver', name: 'booking.vehicle.name' },
-        { data: 'approval_level_badge', name: 'approval_level' },
-        { data: 'status_badge', name: 'status' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
+        { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+        {
+          data: 'booking.booking_code',
+          name: 'booking.booking_code',
+          render: function(data, type, row) {
+            const b = row.booking;
+            if (!b) return '-';
+            const userName = b.user ? escapeHtml(b.user.name) : 'System';
+            return `
+              <div class="lh-sm">
+                <strong class="font-monospace d-block">${escapeHtml(b.booking_code)}</strong>
+                <small class="text-muted">Pemohon: ${userName}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'booking.start_date',
+          name: 'booking.start_date',
+          render: function(data, type, row) {
+            const b = row.booking;
+            if (!b) return '-';
+            const startDate = b.start_date ? formatDateTime(b.start_date) : '-';
+            const endDate = b.end_date ? formatDateTime(b.end_date) : '-';
+            const startLoc = b.start_location ? escapeHtml(b.start_location.name) : escapeHtml(b.start_address || '-');
+            const destLoc = b.destination_location ? escapeHtml(b.destination_location.name) : escapeHtml(b.destination_address || '-');
+            return `
+              <div class="lh-sm">
+                <small class="d-block text-dark fw-semibold"><i class="bi bi-calendar-range me-1"></i>${startDate} - ${endDate}</small>
+                <small class="d-block text-secondary mt-1"><i class="bi bi-geo-alt-fill text-danger me-1"></i>${startLoc} &rarr; ${destLoc}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'booking.vehicle.name',
+          name: 'booking.vehicle.name',
+          render: function(data, type, row) {
+            const b = row.booking;
+            if (!b) return '-';
+            const vName = b.vehicle ? `${escapeHtml(b.vehicle.name)} (${escapeHtml(b.vehicle.license_plate)})` : '-';
+            const dName = b.driver ? escapeHtml(b.driver.name) : '-';
+            return `
+              <div class="lh-sm">
+                <small class="d-block text-dark fw-semibold"><i class="bi bi-truck me-1"></i>${vName}</small>
+                <small class="text-secondary"><i class="bi bi-person me-1"></i>Driver: ${dName}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'approval_level',
+          name: 'approval_level',
+          render: function(data, type, row) {
+            const approverName = row.approver ? escapeHtml(row.approver.name) : 'User';
+            if (data == 1) {
+              return `Level 1 (SPV: ${approverName})`;
+            }
+            return `Level 2 (Manager: ${approverName})`;
+          }
+        },
+        {
+          data: 'status',
+          name: 'status',
+          render: function(data, type, row) {
+            const b = row.booking;
+            if (b && (b.status === 'cancelled' || b.deleted_at)) {
+              return '<span class="badge p-1 text-bg-secondary">Dibatalkan</span>';
+            }
+            if (data === 'approved') {
+              return '<span class="badge p-1 text-bg-success">Disetujui</span>';
+            } else if (data === 'rejected') {
+              const noteStr = row.note ? 'Catatan: ' + escapeHtml(row.note) : '';
+              return `<span class="badge p-1 text-bg-danger" title="${noteStr}">Ditolak</span>`;
+            }
+            return '<span class="badge p-1 text-bg-warning text-dark">Menunggu</span>';
+          }
+        },
+        {
+          data: 'id',
+          name: 'id',
+          orderable: false,
+          searchable: false,
+          width: '1%',
+          className: 'text-center text-nowrap',
+          render: function(data, type, row) {
+            const b = row.booking;
+            const bookingId = b ? b.id : 0;
+
+            const btnDetail = `
+              <button type="button" class="btn btn-outline-info btn-sm btn-detail" data-booking-id="${bookingId}" title="Lihat Detail Pemesanan">
+                <i class="bi bi-eye me-1"></i> Detail
+              </button>
+            `;
+
+            if (row.status !== 'pending' || (b && (b.status === 'cancelled' || b.deleted_at))) {
+              return btnDetail;
+            }
+
+            const isAssignedApprover = (row.approver_id == currentUserId);
+            const hasMatchingLevel = (currentUserLevel == row.approval_level && currentUserRole !== 'admin');
+            let canProcess = (isAssignedApprover || hasMatchingLevel);
+
+            if (row.approval_level == 2) {
+              const l1Approved = b && b.approvals && b.approvals.some(a => a.approval_level == 1 && a.status === 'approved');
+              if (!l1Approved) {
+                canProcess = false;
+              }
+            }
+
+            if (!canProcess) {
+              return btnDetail;
+            }
+
+            const bCode = b ? escapeHtml(b.booking_code) : '';
+            return `
+              <div class="btn-group btn-group-sm">
+                ${btnDetail}
+                <button type="button" class="btn btn-success btn-sm btn-approve ms-1" data-id="${row.id}" data-code="${bCode}" title="Setujui Pemesanan">
+                  <i class="bi bi-check-lg me-1"></i> Setujui
+                </button>
+                <button type="button" class="btn btn-danger btn-sm btn-reject ms-1" data-id="${row.id}" data-code="${bCode}" title="Tolak Pemesanan">
+                  <i class="bi bi-x-lg me-1"></i> Tolak
+                </button>
+              </div>
+            `;
+          }
+        }
       ],
       language: {
         search: "Cari:",
@@ -266,8 +374,8 @@
       let approvalsHtml = '<div class="list-group list-group-flush border rounded-3">';
       if (data.approvals && data.approvals.length > 0) {
         data.approvals.forEach(function(app) {
-          const approverName = app.approver ? app.approver.name : 'Approver';
-          const roleName = app.approver && app.approver.role ? (app.approver.role.label || app.approver.role.name) : '-';
+          const approverName = app.approver ? escapeHtml(app.approver.name) : 'Approver';
+          const roleName = app.approver && app.approver.role ? escapeHtml(app.approver.role.label || app.approver.role.name) : '-';
           
           let badge = '<span class="badge text-bg-warning text-dark">Menunggu</span>';
           if (app.status === 'approved') {
@@ -277,11 +385,11 @@
           }
 
           const timeBadge = app.responded_at ?
-            `<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-clock me-1"></i>${formatDateTimeStr(app.responded_at)}</span>` :
+            `<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-clock me-1"></i>${formatDateTime(app.responded_at)}</span>` :
             '<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-hourglass me-1"></i>Belum Diproses</span>';
 
           const noteHtml = app.note ?
-            `<div class="mt-2 small bg-white p-2 border rounded text-dark"><strong>Catatan:</strong> ${app.note}</div>` : '';
+            `<div class="mt-2 small bg-white p-2 border rounded text-dark"><strong>Catatan:</strong> ${escapeHtml(app.note)}</div>` : '';
 
           approvalsHtml += `
             <div class="list-group-item py-2">
@@ -304,12 +412,12 @@
       }
       approvalsHtml += '</div>';
 
-      const vehicleText = data.vehicle ? data.vehicle.name + ' (' + data.vehicle.license_plate + ')' : '-';
-      const driverText = data.driver ? data.driver.name + (data.driver.phone ? ' (' + data.driver.phone + ')' : '') : '-';
-      const startLocText = data.start_location ? data.start_location.name : (data.start_address || '-');
-      const destLocText = data.destination_location ? data.destination_location.name : (data.destination_address || '-');
-      const startDateText = data.start_date ? formatDateTimeStr(data.start_date) : '-';
-      const endDateText = data.end_date ? formatDateTimeStr(data.end_date) : '-';
+      const vehicleText = data.vehicle ? `${escapeHtml(data.vehicle.name)} (${escapeHtml(data.vehicle.license_plate)})` : '-';
+      const driverText = data.driver ? `${escapeHtml(data.driver.name)}${data.driver.phone ? ' (' + escapeHtml(data.driver.phone) + ')' : ''}` : '-';
+      const startLocText = data.start_location ? escapeHtml(data.start_location.name) : escapeHtml(data.start_address || '-');
+      const destLocText = data.destination_location ? escapeHtml(data.destination_location.name) : escapeHtml(data.destination_address || '-');
+      const startDateText = data.start_date ? formatDateTime(data.start_date) : '-';
+      const endDateText = data.end_date ? formatDateTime(data.end_date) : '-';
 
       return `
         <div class="row g-3">
@@ -318,8 +426,8 @@
           </div>
           <div class="col-md-6 mt-1">
             <div class="p-3 rounded-3 h-100 border">
-              <div class="mb-2"><strong>Kode:</strong> <span class="text-primary font-monospace fs-6">${data.booking_code}</span></div>
-              <div class="mb-2"><strong>Pemohon:</strong> ${data.user ? data.user.name : '-'}</div>
+              <div class="mb-2"><strong>Kode:</strong> <span class="text-primary font-monospace fs-6">${escapeHtml(data.booking_code)}</span></div>
+              <div class="mb-2"><strong>Pemohon:</strong> ${data.user ? escapeHtml(data.user.name) : '-'}</div>
               <div class="mb-2"><strong>Jadwal:</strong> ${startDateText} s/d ${endDateText}</div>
             </div>
           </div>
@@ -333,7 +441,7 @@
           </div>
           <div class="col-12 mt-3">
             <small class="text-uppercase font-monospace text-muted fw-bold d-block mb-2">Keperluan</small>
-            <div class="rounded-3 border p-3 text-dark">${data.purpose || '-'}</div>
+            <div class="rounded-3 border p-3 text-dark">${escapeHtml(data.purpose) || '-'}</div>
           </div>
           <div class="col-12 mt-3">
             <small class="text-uppercase font-monospace text-muted fw-bold d-block mb-2">Status Persetujuan Berjenjang</small>

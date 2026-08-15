@@ -18,57 +18,9 @@ class RentalCompanyController extends Controller
     {
         if ($request->ajax()) {
             $query = RentalCompany::withCount('vehicles');
-            $isAdmin = Auth::user()->role?->name === 'admin';
 
             return DataTables::of($query)
                 ->addIndexColumn()
-                ->addColumn('company_name', function ($rc) {
-                    return '
-                        <div class="d-flex align-items-center gap-2">
-                            <div class="avatar-icon bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px;">
-                                <i class="bi bi-building"></i>
-                            </div>
-                            <div>
-                                <strong class="text-dark d-block">' . e($rc->name) . '</strong>
-                                <small class="text-muted"><i class="bi bi-truck me-1"></i>' . $rc->vehicles_count . ' unit disewa</small>
-                            </div>
-                        </div>
-                    ';
-                })
-                ->addColumn('contact', function ($rc) {
-                    if (!$rc->contact_person) {
-                        return '<span class="text-muted italic">-</span>';
-                    }
-                    return '<span class="fw-semibold text-dark"><i class="bi bi-person me-1 text-primary"></i>' . e($rc->contact_person) . '</span>';
-                })
-                ->addColumn('phone_formatted', function ($rc) {
-                    if (!$rc->phone) {
-                        return '<span class="text-muted italic">-</span>';
-                    }
-                    return '<i class="bi bi-telephone text-primary me-1"></i> ' . e($rc->phone);
-                })
-                ->addColumn('address_formatted', function ($rc) {
-                    if (!$rc->address) {
-                        return '<span class="text-muted italic">-</span>';
-                    }
-                    return '<small class="text-secondary">' . e($rc->address) . '</small>';
-                })
-                ->addColumn('action', function ($rc) use ($isAdmin) {
-                    if (!$isAdmin) {
-                        return '<span class="badge text-bg-light border text-secondary"><i class="bi bi-eye me-1"></i> Read Only</span>';
-                    }
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            <button type="button" class="btn btn-outline-primary btn-edit" data-id="' . $rc->id . '" title="Edit Perusahaan Sewa">
-                                <i class="bi bi-pencil-square"></i>
-                            </button>
-                            <button type="button" class="btn btn-outline-danger btn-delete" data-id="' . $rc->id . '" data-name="' . e($rc->name) . '" title="Hapus Perusahaan Sewa">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
-                    ';
-                })
-                ->rawColumns(['company_name', 'contact', 'phone_formatted', 'address_formatted', 'action'])
                 ->make(true);
         }
 

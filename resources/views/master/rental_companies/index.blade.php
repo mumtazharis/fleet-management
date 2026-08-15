@@ -29,6 +29,7 @@
         <tr>
           <th class="text-center">No.</th>
           <th>Nama Perusahaan</th>
+          <th>Jumlah Unit</th>
           <th>Penanggung Jawab (PIC)</th>
           <th>Nomor Telepon</th>
           <th>Alamat Perusahaan</th>
@@ -109,15 +110,70 @@
     const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     const rentalCompanyColumns = [
-      { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-      { data: 'company_name', name: 'name' },
-      { data: 'contact', name: 'contact_person' },
-      { data: 'phone_formatted', name: 'phone' },
-      { data: 'address_formatted', name: 'address' }
+      { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+      {
+        data: 'name',
+        name: 'name',
+        render: function(data) {
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'vehicles_count',
+        name: 'vehicles_count',
+        className: 'text-center',
+        render: function(data, type, row) {
+          const count = row.vehicles_count ?? 0;
+          return `${count}`;
+        }
+      },
+      {
+        data: 'contact_person',
+        name: 'contact_person',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'phone',
+        name: 'phone',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `${escapeHtml(data)}`;
+        }
+      },
+      {
+        data: 'address',
+        name: 'address',
+        render: function(data) {
+          if (!data) return '<span class="text-muted fst-italic">-</span>';
+          return `<small class="text-secondary">${escapeHtml(data)}</small>`;
+        }
+      }
     ];
 
     if (isAdmin) {
-      rentalCompanyColumns.push({ data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' });
+      rentalCompanyColumns.push({
+        data: 'id',
+        name: 'id',
+        orderable: false,
+        searchable: false,
+        width: '1%',
+        className: 'text-center text-nowrap',
+        render: function(data, type, row) {
+          return `
+            <div class="btn-group btn-group-sm">
+              <button type="button" class="btn btn-outline-primary btn-edit" data-id="${data}" title="Edit Perusahaan Sewa">
+                <i class="bi bi-pencil-square"></i>
+              </button>
+              <button type="button" class="btn btn-outline-danger btn-delete" data-id="${data}" data-name="${escapeHtml(row.name)}" title="Hapus Perusahaan Sewa">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+      });
     }
 
     // 1. Inisialisasi DataTables Server-Side Processing

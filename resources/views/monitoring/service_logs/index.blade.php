@@ -31,7 +31,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">TOTAL BIAYA SERVIS</small>
-          <h5 class="mb-0 fw-bold text-dark">Rp {{ number_format($totalCost, 0, ',', '.') }}</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statTotalCost">Rp {{ number_format($totalCost, 0, ',', '.') }}</h5>
         </div>
       </div>
     </div>
@@ -45,7 +45,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">TOTAL RIWAYAT SERVIS</small>
-          <h5 class="mb-0 fw-bold text-dark">{{ number_format($totalServices, 0, ',', '.') }} Kali Servis</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statTotalServices">{{ number_format($totalServices, 0, ',', '.') }} Kali Servis</h5>
         </div>
       </div>
     </div>
@@ -59,7 +59,7 @@
         </div>
         <div>
           <small class="text-muted text-uppercase font-monospace fw-bold" style="font-size: 0.725rem;">SERVIS AKTIF (DALAM PROSES)</small>
-          <h5 class="mb-0 fw-bold text-dark">{{ number_format($inMaintenanceCount, 0, ',', '.') }} Unit</h5>
+          <h5 class="mb-0 fw-bold text-dark" id="statInMaintenanceCount">{{ number_format($inMaintenanceCount, 0, ',', '.') }} Unit</h5>
         </div>
       </div>
     </div>
@@ -198,23 +198,6 @@
 </div>
 @endsection
 
-@push('styles')
-<style>
-  #tableServiceLogs th:first-child,
-  #tableServiceLogs td:first-child {
-    width: 40px !important;
-    max-width: 40px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    text-align: center;
-  }
-  #tableServiceLogs th:first-child::before,
-  #tableServiceLogs th:first-child::after {
-    display: none !important;
-  }
-</style>
-@endpush
-
 @section('scripts')
 <script>
   $(document).ready(function() {
@@ -223,7 +206,7 @@
     const detailModalEl = document.getElementById('detailServiceLogModal');
     const detailModal = new bootstrap.Modal(detailModalEl);
 
-    let editServiceLogId = null;
+    const isAdmin = @json(Auth::user()->role?->name === 'admin');
 
     // 1. DataTables Server-Side Processing
     const tableServiceLogs = $('#tableServiceLogs').DataTable({
@@ -231,13 +214,97 @@
       serverSide: true,
       ajax: "{{ route('service-logs.index') }}",
       columns: [
-        { data: 'DT_RowIndex', name: 'DT_RowIndex', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
-        { data: 'formatted_service_date', name: 'service_date' },
-        { data: 'vehicle_info', name: 'vehicle.name' },
-        { data: 'service_type_badge', name: 'service_type' },
-        { data: 'cost_formatted', name: 'cost' },
-        { data: 'status_badge', name: 'status' },
-        { data: 'action', name: 'action', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' }
+        { data: 'DT_RowIndex', name: 'id', orderable: false, searchable: false, width: '1%', className: 'text-center text-nowrap' },
+        {
+          data: 'service_date',
+          name: 'service_date',
+          render: function(data) {
+            return formatDate(data);
+          }
+        },
+        {
+          data: 'vehicle',
+          name: 'vehicle.name',
+          render: function(data, type, row) {
+            const vName = row.vehicle ? escapeHtml(row.vehicle.name) : 'Kendaraan Terhapus';
+            const plate = row.vehicle ? escapeHtml(row.vehicle.license_plate) : '-';
+            const location = row.vehicle && row.vehicle.location ? escapeHtml(row.vehicle.location.name) : '-';
+
+            return `
+              <div class="lh-sm">
+                <strong class="d-block text-dark">${vName} (${plate})</strong>
+                <small class="text-muted">Pool: ${location}</small>
+              </div>
+            `;
+          }
+        },
+        {
+          data: 'service_type',
+          name: 'service_type',
+          render: function(data) {
+            return `${escapeHtml(data)}`;
+          }
+        },
+        {
+          data: 'cost',
+          name: 'cost',
+          render: function(data) {
+            return `${formatRupiah(data)}`;
+          }
+        },
+        {
+          data: 'status',
+          name: 'status',
+          render: function(data) {
+            if (data === 'completed') {
+              return '<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i> Selesai</span>';
+            } else if (data === 'cancelled') {
+              return '<span class="badge text-bg-secondary"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
+            }
+            return '<span class="badge text-bg-warning text-dark"><i class="bi bi-gear-wide-connected me-1"></i> Dalam Servis</span>';
+          }
+        },
+        {
+          data: 'id',
+          name: 'id',
+          orderable: false,
+          searchable: false,
+          width: '1%',
+          className: 'text-center text-nowrap',
+          render: function(data, type, row) {
+            const btnDetail = `
+              <button type="button" class="btn btn-outline-info btn-sm btn-detail" data-id="${data}" title="Rincian Servis">
+                <i class="bi bi-eye me-1"></i> Detail
+              </button>
+            `;
+
+            if (!isAdmin || row.status !== 'in_progress') {
+              return btnDetail;
+            }
+
+            const vName = escapeHtml(row.vehicle ? row.vehicle.name : 'Kendaraan');
+
+            const btnComplete = `
+              <button type="button" class="btn btn-success btn-sm btn-complete-service ms-1" data-id="${data}" data-vehicle="${vName}" title="Selesaikan Servis & Kembalikan Status Armada ke Tersedia">
+                <i class="bi bi-check2-circle me-1"></i> Selesai
+              </button>
+            `;
+
+            const btnEdit = `
+              <button type="button" class="btn btn-outline-warning btn-sm btn-edit ms-1" data-id="${data}" title="Edit Servis">
+                <i class="bi bi-pencil me-1"></i> Edit
+              </button>
+            `;
+
+            const btnCancel = `
+              <button type="button" class="btn btn-outline-danger btn-sm btn-cancel-service ms-1" data-id="${data}" data-vehicle="${vName}" title="Batalkan Servis">
+                <i class="bi bi-x-circle me-1"></i> Batalkan
+              </button>
+            `;
+
+            return `<div class="btn-group btn-group-sm">${btnDetail}${btnComplete}${btnEdit}${btnCancel}</div>`;
+          }
+        }
       ],
       language: {
         search: "Cari:",
@@ -257,9 +324,37 @@
       order: [[1, 'desc']]
     });
 
+    // Helper: Refresh Dynamic Form Options & Stat Cards via AJAX
+    function refreshServiceOptionsAndStats(callback) {
+      $.ajax({
+        url: "{{ route('service-logs.options') }}",
+        type: 'GET',
+        dataType: 'json',
+        success: function(res) {
+          if (res.stats) {
+            $('#statTotalCost').text(formatRupiah(res.stats.total_cost));
+            $('#statTotalServices').text(formatNumber(res.stats.total_services) + ' Kali Servis');
+            $('#statInMaintenanceCount').text(formatNumber(res.stats.in_maintenance_count) + ' Unit');
+          }
+          if (res.available_vehicles) {
+            const currentVal = $('#selectVehicle').val();
+            let opts = '<option value="" selected disabled>-- Pilih Kendaraan Tersedia --</option>';
+            res.available_vehicles.forEach(v => {
+              const pool = v.location ? v.location.name : '-';
+              opts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | Pool: ${escapeHtml(pool)})</option>`;
+            });
+            $('#selectVehicle').html(opts);
+            if (currentVal && res.available_vehicles.some(v => v.id == currentVal)) {
+              $('#selectVehicle').val(currentVal);
+            }
+          }
+          if (callback) callback(res);
+        }
+      });
+    }
+
     // Tombol Tambah Servis
     $('#btnCreateServiceLog').on('click', function() {
-      editServiceLogId = null;
       $('#modalTitle').text('Catat Servis Kendaraan Baru');
       $('#formServiceLog')[0].reset();
       $('#formMethod').val('POST');
@@ -267,7 +362,9 @@
       $('#formServiceLog').removeClass('was-validated');
       $('.invalid-feedback').text('');
       $('#inputServiceDate').val(new Date().toISOString().split('T')[0]);
-      $('.select2').val('').trigger('change');
+      refreshServiceOptionsAndStats(function() {
+        $('#selectVehicle').val('').trigger('change');
+      });
       serviceLogModal.show();
     });
 
@@ -292,6 +389,7 @@
           if (response.success) {
             serviceLogModal.hide();
             tableServiceLogs.ajax.reload(null, false);
+            refreshServiceOptionsAndStats();
 
             Swal.fire({
               icon: 'success',
@@ -321,7 +419,6 @@
     // Tombol Edit
     $(document).on('click', '.btn-edit', function() {
       const id = $(this).data('id');
-      editServiceLogId = id;
       const url = "{{ url('service-logs') }}/" + id;
 
       $('#modalTitle').text('Edit Riwayat Servis');
@@ -335,19 +432,27 @@
         type: 'GET',
         dataType: 'json',
         success: function(data) {
-          // If vehicle option doesn't exist in dropdown, append temporarily for edit mode
-          if ($(`#selectVehicle option[value="${data.vehicle_id}"]`).length === 0 && data.vehicle) {
-            const newOpt = new Option(`${data.vehicle.name} (${data.vehicle.license_plate})`, data.vehicle_id, true, true);
-            $('#selectVehicle').append(newOpt);
-          }
+          $.ajax({
+            url: "{{ route('service-logs.options') }}",
+            type: 'GET',
+            dataType: 'json',
+            success: function(res) {
+              const vehicles = res.all_vehicles || res.available_vehicles || [];
+              let opts = '<option value="" disabled>-- Pilih Kendaraan --</option>';
+              vehicles.forEach(v => {
+                const pool = v.location ? v.location.name : '-';
+                opts += `<option value="${v.id}">${escapeHtml(v.name)} (Plat: ${escapeHtml(v.license_plate)} | Pool: ${escapeHtml(pool)})</option>`;
+              });
+              $('#selectVehicle').html(opts);
+              $('#selectVehicle').val(data.vehicle_id).trigger('change');
+              $('#inputServiceType').val(data.service_type);
+              $('#inputServiceDate').val(data.service_date ? data.service_date.split('T')[0] : '');
+              $('#inputCost').val(data.cost);
+              $('#inputDescription').val(data.description || '');
 
-          $('#selectVehicle').val(data.vehicle_id).trigger('change');
-          $('#inputServiceType').val(data.service_type);
-          $('#inputServiceDate').val(data.service_date ? data.service_date.split('T')[0] : '');
-          $('#inputCost').val(data.cost);
-          $('#inputDescription').val(data.description || '');
-
-          serviceLogModal.show();
+              serviceLogModal.show();
+            }
+          });
         },
         error: function() {
           Swal.fire('Error', 'Gagal memuat data servis.', 'error');
@@ -382,6 +487,7 @@
             success: function(response) {
               if (response.success) {
                 tableServiceLogs.ajax.reload(null, false);
+                refreshServiceOptionsAndStats();
                 Swal.fire({
                   icon: 'success',
                   title: 'Servis Selesai!',
@@ -400,21 +506,6 @@
       });
     });
 
-    // Helper format date
-    function formatDateStr(dateStr) {
-      if (!dateStr) return '-';
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-
-    function formatRupiah(num) {
-      return 'Rp ' + Number(num || 0).toLocaleString('id-ID');
-    }
-
     // Tombol Detail
     $(document).on('click', '.btn-detail', function() {
       const id = $(this).data('id');
@@ -428,11 +519,11 @@
         type: 'GET',
         dataType: 'json',
         success: function(data) {
-          const vehicleName = data.vehicle ? `${data.vehicle.name} (${data.vehicle.license_plate})` : 'Kendaraan Terhapus';
-          const vehiclePool = data.vehicle && data.vehicle.location ? data.vehicle.location.name : '-';
+          const vehicleName = data.vehicle ? `${escapeHtml(data.vehicle.name)} (${escapeHtml(data.vehicle.license_plate)})` : 'Kendaraan Terhapus';
+          const vehiclePool = data.vehicle && data.vehicle.location ? escapeHtml(data.vehicle.location.name) : '-';
           const serviceStatus = data.status === 'completed'
             ? '<span class="badge text-bg-success fs-6">SELESAI (COMPLETED)</span>'
-            : '<span class="badge text-bg-warning text-dark fs-6">DALAM SERVIS (IN PROGRESS)</span>';
+            : (data.status === 'cancelled' ? '<span class="badge text-bg-secondary fs-6">DIBATALKAN</span>' : '<span class="badge text-bg-warning text-dark fs-6">DALAM SERVIS (IN PROGRESS)</span>');
 
           const html = `
             <div class="row g-3">
@@ -442,8 +533,8 @@
               <div class="col-md-6 mt-1">
                 <div class="p-3 rounded-3 h-100 border">
                   <div class="mb-2"><strong>Status Servis:</strong> ${serviceStatus}</div>
-                  <div class="mb-2"><strong>Jenis Servis:</strong> <span class="badge text-bg-primary fs-6">${data.service_type}</span></div>
-                  <div class="mb-2"><strong>Tanggal Servis:</strong> <span class="text-dark fw-bold">${formatDateStr(data.service_date)}</span></div>
+                  <div class="mb-2"><strong>Jenis Servis:</strong> <span class="badge text-bg-primary fs-6">${escapeHtml(data.service_type)}</span></div>
+                  <div class="mb-2"><strong>Tanggal Servis:</strong> <span class="text-dark fw-bold">${formatDate(data.service_date)}</span></div>
                   <div class="mb-2"><strong>Total Biaya:</strong> <span class="text-success fw-bold fs-6">${formatRupiah(data.cost)}</span></div>
                 </div>
               </div>
@@ -456,7 +547,7 @@
               </div>
               <div class="col-12 mt-3">
                 <small class="text-uppercase font-monospace text-muted fw-bold d-block mb-2">Rincian Perbaikan & Catatan Suku Cadang</small>
-                <div class="rounded-3 border p-3 text-dark bg-light">${data.description || 'Tidak ada rincian catatan.'}</div>
+                <div class="rounded-3 border p-3 text-dark bg-light">${escapeHtml(data.description) || 'Tidak ada rincian catatan.'}</div>
               </div>
             </div>
           `;
@@ -496,6 +587,7 @@
             success: function(response) {
               if (response.success) {
                 tableServiceLogs.ajax.reload(null, false);
+                refreshServiceOptionsAndStats();
                 Swal.fire({
                   icon: 'success',
                   title: 'Dibatalkan!',
