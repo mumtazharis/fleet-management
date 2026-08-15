@@ -24,7 +24,7 @@
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
 <div class="panel shadow-sm">
   <div class="table-responsive">
-    <table class="table table-hover align-middle w-100" id="tableDrivers">
+    <table class="table table-hover table-bordered align-middle w-100" id="tableDrivers">
       <thead class="table-light">
         <tr>
           <th class="text-center">No.</th>
@@ -50,7 +50,7 @@
     <div class="modal-content border-0 shadow-lg rounded-4">
       <div class="modal-header border-bottom">
         <h5 class="modal-title fw-bold" id="driverModalLabel">
-          <i class="bi bi-person-badge text-warning me-2"></i> <span id="modalTitle">Tambah Driver Baru</span>
+          <i class="bi bi-person-badge me-2"></i> <span id="modalTitle">Tambah Driver Baru</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>

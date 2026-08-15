@@ -6,6 +6,8 @@ use App\Http\Controllers\Master\DriverController;
 use App\Http\Controllers\Master\LocationController;
 use App\Http\Controllers\Master\RentalCompanyController;
 use App\Http\Controllers\Master\VehicleController;
+use App\Http\Controllers\Monitoring\FuelLogController;
+use App\Http\Controllers\Transaction\BookingApprovalController;
 use App\Http\Controllers\Transaction\VehicleBookingController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +33,14 @@ Route::middleware('auth')->group(function () {
     Route::resource('rental-companies', RentalCompanyController::class);
     Route::resource('locations', LocationController::class);
 
-    // Transaction Routes (Pemesanan Kendaraan)
+    // Transaction Routes (Pemesanan Kendaraan & Persetujuan Berjenjang)
+    Route::post('/bookings/{booking}/complete', [VehicleBookingController::class, 'complete'])->name('bookings.complete');
     Route::resource('bookings', VehicleBookingController::class);
+
+    Route::get('/approvals', [BookingApprovalController::class, 'index'])->name('approvals.index');
+    Route::post('/approvals/{approval}/approve', [BookingApprovalController::class, 'approve'])->name('approvals.approve');
+    Route::post('/approvals/{approval}/reject', [BookingApprovalController::class, 'reject'])->name('approvals.reject');
+
+    // Monitoring Routes
+    Route::resource('fuel-logs', FuelLogController::class);
 });

@@ -37,27 +37,27 @@ class VehicleBooking extends Model
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
     }
 
     public function vehicle(): BelongsTo
     {
-        return $this->belongsTo(Vehicle::class, 'vehicle_id');
+        return $this->belongsTo(Vehicle::class, 'vehicle_id')->withTrashed();
     }
 
     public function driver(): BelongsTo
     {
-        return $this->belongsTo(Driver::class, 'driver_id');
+        return $this->belongsTo(Driver::class, 'driver_id')->withTrashed();
     }
 
     public function startLocation(): BelongsTo
     {
-        return $this->belongsTo(Location::class, 'start_location_id');
+        return $this->belongsTo(Location::class, 'start_location_id')->withTrashed();
     }
 
     public function destinationLocation(): BelongsTo
     {
-        return $this->belongsTo(Location::class, 'destination_location_id');
+        return $this->belongsTo(Location::class, 'destination_location_id')->withTrashed();
     }
 
     public function approvals(): HasMany

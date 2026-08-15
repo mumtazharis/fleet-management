@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\BookingApproval;
 use App\Models\Driver;
 use App\Models\Location;
 use App\Models\RentalCompany;
+use App\Models\User;
 use App\Models\Vehicle;
+use App\Models\VehicleBooking;
 use Illuminate\Database\Seeder;
 
 class FleetSeeder extends Seeder
@@ -36,7 +39,7 @@ class FleetSeeder extends Seeder
             [
                 'name' => 'Toyota Hilux Single Cab 4x4',
                 'license_plate' => 'DN 8102 AB',
-                'type' => 'cargo', // Angkutan barang / material tambang
+                'type' => 'cargo',
                 'ownership' => 'company',
                 'rental_company_id' => null,
                 'location_id' => $mine1?->id,
@@ -46,7 +49,7 @@ class FleetSeeder extends Seeder
             [
                 'name' => 'Mitsubishi Triton Double Cab 4x4',
                 'license_plate' => 'DN 8405 BC',
-                'type' => 'passenger', // Angkutan personel / engineer
+                'type' => 'passenger',
                 'ownership' => 'company',
                 'rental_company_id' => null,
                 'location_id' => $mine1?->id,
@@ -56,7 +59,7 @@ class FleetSeeder extends Seeder
             [
                 'name' => 'Toyota HiAce Commuter (15 Seat)',
                 'license_plate' => 'B 7099 SAA',
-                'type' => 'passenger', // Transportasi pegawai antar jemput
+                'type' => 'passenger',
                 'ownership' => 'rented',
                 'rental_company_id' => $rental1->id,
                 'location_id' => $hq?->id,
@@ -66,7 +69,7 @@ class FleetSeeder extends Seeder
             [
                 'name' => 'Hino Ranger Dump Truck 20 Ton',
                 'license_plate' => 'DT 9912 NK',
-                'type' => 'cargo', // Angkutan hasil tambang nikel
+                'type' => 'cargo',
                 'ownership' => 'rented',
                 'rental_company_id' => $rental2->id,
                 'location_id' => $mine2?->id,

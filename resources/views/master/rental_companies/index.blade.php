@@ -24,7 +24,7 @@
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
 <div class="panel shadow-sm">
   <div class="table-responsive">
-    <table class="table table-hover align-middle w-100" id="tableRentalCompanies">
+    <table class="table table-hover table-bordered align-middle w-100" id="tableRentalCompanies">
       <thead class="table-light">
         <tr>
           <th class="text-center">No.</th>
@@ -50,7 +50,7 @@
     <div class="modal-content border-0 shadow-lg rounded-4">
       <div class="modal-header border-bottom">
         <h5 class="modal-title fw-bold" id="rentalCompanyModalLabel">
-          <i class="bi bi-building text-warning me-2"></i> <span id="modalTitle">Tambah Perusahaan Sewa Baru</span>
+          <i class="bi bi-building me-2"></i> <span id="modalTitle">Tambah Perusahaan Sewa Baru</span>
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>

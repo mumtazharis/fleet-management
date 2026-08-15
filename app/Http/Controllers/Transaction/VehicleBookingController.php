@@ -63,65 +63,50 @@ class VehicleBookingController extends Controller
                         <small class="d-block text-secondary"><i class="bi bi-arrow-down me-1"></i>' . $destLoc . '</small>
                     ';
                 })
-                ->addColumn('approvals_status', function ($b) {
-                    if ($b->status === 'cancelled' || $b->trashed()) {
-                        return '<span class="badge text-bg-secondary"><i class="bi bi-slash-circle me-1"></i> Pemesanan Dibatalkan</span>';
-                    }
-
-                    $html = '<div class="d-flex flex-column gap-1">';
-                    foreach ($b->approvals as $approval) {
-                        $approverName = $approval->approver ? e($approval->approver->name) : 'Approver';
-                        $levelLabel = 'L' . $approval->approval_level . ': ' . $approverName;
-
-                        if ($approval->status === 'approved') {
-                            $badge = '<span class="badge text-bg-success" title="Disetujui"><i class="bi bi-check-circle me-1"></i>' . $levelLabel . '</span>';
-                        } elseif ($approval->status === 'rejected') {
-                            $badge = '<span class="badge text-bg-danger" title="Ditolak"><i class="bi bi-x-circle me-1"></i>' . $levelLabel . '</span>';
-                        } else {
-                            $badge = '<span class="badge text-bg-warning text-dark" title="Menunggu"><i class="bi bi-hourglass-split me-1"></i>' . $levelLabel . '</span>';
-                        }
-                        $html .= $badge;
-                    }
-                    $html .= '</div>';
-                    return $html;
-                })
                 ->addColumn('status_badge', function ($b) {
                     if ($b->status === 'cancelled' || $b->trashed()) {
-                        return '<span class="badge text-bg-secondary fs-6"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
+                        return '<span class="badge text-bg-secondary"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
                     } elseif ($b->status === 'approved') {
-                        return '<span class="badge text-bg-success fs-6"><i class="bi bi-check-all me-1"></i> Disetujui</span>';
+                        return '<span class="badge text-bg-success"><i class="bi bi-check-all me-1"></i> Disetujui</span>';
                     } elseif ($b->status === 'rejected') {
-                        return '<span class="badge text-bg-danger fs-6"><i class="bi bi-x-lg me-1"></i> Ditolak</span>';
+                        return '<span class="badge text-bg-danger"><i class="bi bi-x-lg me-1"></i> Ditolak</span>';
                     } elseif ($b->status === 'completed') {
-                        return '<span class="badge text-bg-info fs-6"><i class="bi bi-flag-fill me-1"></i> Selesai</span>';
+                        return '<span class="badge text-bg-info"><i class="bi bi-flag-fill me-1"></i> Selesai</span>';
                     } elseif ($b->status === 'in_progress') {
-                        return '<span class="badge text-bg-primary fs-6"><i class="bi bi-truck me-1"></i> Berjalan</span>';
+                        return '<span class="badge text-bg-primary"><i class="bi bi-truck me-1"></i> Berjalan</span>';
                     }
-                    return '<span class="badge text-bg-warning text-dark fs-6"><i class="bi bi-clock me-1"></i> Menunggu Approval</span>';
+                    return '<span class="badge text-bg-warning text-dark"><i class="bi bi-clock me-1"></i> Menunggu Approval</span>';
                 })
                 ->addColumn('action', function ($b) use ($isAdmin) {
                     $btnDetail = '
-                        <button type="button" class="btn btn-outline-info btn-detail" data-id="' . $b->id . '" title="Detail Pemesanan">
+                        <button type="button" class="btn btn-sm btn-outline-info btn-detail" data-id="' . $b->id . '" title="Detail Pemesanan">
                             <i class="bi bi-eye me-1"></i> Detail
                         </button>
                     ';
 
-                    if (!$isAdmin) {
+                    if (!$isAdmin || $b->status === 'cancelled' || $b->trashed()) {
                         return $btnDetail;
                     }
 
-                    if ($b->status === 'cancelled' || $b->trashed()) {
-                        return $btnDetail . ' <span class="badge text-bg-light border text-muted ms-1">Dibatalkan</span>';
+                    $btnComplete = '';
+                    if (in_array($b->status, ['approved', 'in_progress'])) {
+                        $btnComplete = '
+                            <button type="button" class="btn btn-sm btn-success btn-complete ms-1" data-id="' . $b->id . '" data-code="' . e($b->booking_code) . '" title="Selesaikan Pemesanan">
+                                <i class="bi bi-check2-circle me-1"></i> Selesai
+                            </button>
+                        ';
                     }
 
-                    return '
-                        <div class="btn-group btn-group-sm">
-                            ' . $btnDetail . '
-                            <button type="button" class="btn btn-outline-warning btn-cancel" data-id="' . $b->id . '" data-code="' . e($b->booking_code) . '" title="Batalkan Pemesanan">
-                                <i class="bi bi-x-circle me-1"></i> Batalkan
+                    $btnCancel = '';
+                    if ($b->status !== 'completed') {
+                        $btnCancel = '
+                            <button type="button" class="btn btn-sm btn-outline-warning btn-cancel ms-1" data-id="' . $b->id . '" data-code="' . e($b->booking_code) . '" title="Batalkan Pemesanan">
+                                Batalkan
                             </button>
-                        </div>
-                    ';
+                        ';
+                    }
+
+                    return '<div class="btn-group btn-group-sm">' . $btnDetail . $btnComplete . $btnCancel . '</div>';
                 })
                 ->rawColumns(['code_date', 'vehicle_driver', 'route', 'approvals_status', 'status_badge', 'action'])
                 ->make(true);
@@ -167,14 +152,14 @@ class VehicleBookingController extends Controller
         }
 
         $validated = $request->validate([
-            'vehicle_id' => ['required', 'exists:vehicles,id'],
-            'driver_id' => ['required', 'exists:drivers,id'],
-            'start_location_id' => ['required', 'exists:locations,id'],
-            'destination_location_id' => ['required', 'exists:locations,id'],
+            'vehicle_id' => ['required', Rule::exists('vehicles', 'id')->whereNull('deleted_at')],
+            'driver_id' => ['required', Rule::exists('drivers', 'id')->whereNull('deleted_at')],
+            'start_location_id' => ['required', Rule::exists('locations', 'id')->whereNull('deleted_at')],
+            'destination_location_id' => ['required', Rule::exists('locations', 'id')->whereNull('deleted_at')],
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
-            'approver_1_id' => ['required', 'exists:users,id'],
-            'approver_2_id' => ['required', 'exists:users,id', 'different:approver_1_id'],
+            'approver_1_id' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at')],
+            'approver_2_id' => ['required', Rule::exists('users', 'id')->whereNull('deleted_at'), 'different:approver_1_id'],
             'purpose' => ['required', 'string'],
         ], [
             'vehicle_id.required' => 'Pilih kendaraan yang tersedia.',
@@ -228,7 +213,10 @@ class VehicleBookingController extends Controller
         DB::beginTransaction();
         try {
             // Generate unique booking code e.g. BOOK-20260814-001
-            $bookingCode = 'BOOK-' . now()->format('Ymd') . '-' . str_pad(VehicleBooking::whereDate('created_at', now())->count() + 1, 3, '0', STR_PAD_LEFT);
+            $count = VehicleBooking::withTrashed()->whereDate('created_at', now())->count() + 1;
+            do {
+                $bookingCode = 'BOOK-' . now()->format('Ymd') . '-' . str_pad($count++, 3, '0', STR_PAD_LEFT);
+            } while (VehicleBooking::withTrashed()->where('booking_code', $bookingCode)->exists());
 
             $booking = VehicleBooking::create([
                 'booking_code' => $bookingCode,
@@ -369,6 +357,68 @@ class VehicleBookingController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Gagal membatalkan pemesanan: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Complete the specified booking (Admin Only) via status update to completed & releasing vehicle & driver.
+     */
+    public function complete(Request $request, $id)
+    {
+        if (Auth::user()->role?->name !== 'admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Akses ditolak. Hanya Administrator yang dapat menyelesaikan pemesanan kendaraan.',
+            ], 403);
+        }
+
+        $booking = VehicleBooking::findOrFail($id);
+
+        if (in_array($booking->status, ['completed', 'cancelled'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pemesanan ini sudah selesai atau dibatalkan.',
+            ], 422);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Update booking status to completed
+            $booking->update(['status' => 'completed']);
+
+            // Restore Vehicle status back to available if it was reserved/in_use
+            if ($booking->vehicle && in_array($booking->vehicle->status, ['reserved', 'in_use'])) {
+                $booking->vehicle->update(['status' => 'available']);
+            }
+
+            // Restore Driver status back to available if it was reserved/on_trip
+            if ($booking->driver && in_array($booking->driver->status, ['reserved', 'on_trip'])) {
+                $booking->driver->update(['status' => 'available']);
+            }
+
+            ActivityLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'COMPLETE_BOOKING',
+                'entity_type' => 'VehicleBooking',
+                'entity_id' => $booking->id,
+                'description' => 'Selesaikan pemesanan kendaraan ' . $booking->booking_code . '. Status armada & driver dikembalikan ke TERSEDIA.',
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pemesanan kendaraan ' . $booking->booking_code . ' berhasil DISELESAIKAN. Status armada & driver telah dikembalikan ke TERSEDIA.',
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menyelesaikan pemesanan: ' . $e->getMessage(),
             ], 500);
         }
     }

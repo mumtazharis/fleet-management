@@ -23,7 +23,7 @@
     </a>
 
     <!-- Persetujuan / Approvals -->
-    <a class="nav-link {{ request()->routeIs('approvals.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('approvals.*') ? 'active' : '' }}" href="{{ route('approvals.index') }}">
       <span class="nav-icon"><i class="bi bi-check2-square" aria-hidden="true"></i></span>
       <span class="nav-text">Persetujuan (Approvals)</span>
     </a>
@@ -56,7 +56,7 @@
     <div class="sidebar-divider my-2 border-top border-secondary-subtle"></div>
     <small class="px-3 text-uppercase text-muted font-monospace fw-bold" style="font-size: 0.7rem;">MONITORING</small>
 
-    <a class="nav-link {{ request()->routeIs('fuel-logs.*') ? 'active' : '' }}" href="#">
+    <a class="nav-link {{ request()->routeIs('fuel-logs.*') ? 'active' : '' }}" href="{{ route('fuel-logs.index') }}">
       <span class="nav-icon"><i class="bi bi-fuel-pump" aria-hidden="true"></i></span>
       <span class="nav-text">Konsumsi BBM</span>
     </a>

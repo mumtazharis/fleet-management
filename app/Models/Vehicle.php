@@ -25,12 +25,12 @@ class Vehicle extends Model
 
     public function rentalCompany(): BelongsTo
     {
-        return $this->belongsTo(RentalCompany::class);
+        return $this->belongsTo(RentalCompany::class)->withTrashed();
     }
 
     public function location(): BelongsTo
     {
-        return $this->belongsTo(Location::class);
+        return $this->belongsTo(Location::class)->withTrashed();
     }
 
     public function bookings(): HasMany

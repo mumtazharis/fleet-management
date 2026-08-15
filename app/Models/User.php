@@ -42,7 +42,7 @@ class User extends Authenticatable
 
     public function location(): BelongsTo
     {
-        return $this->belongsTo(Location::class);
+        return $this->belongsTo(Location::class)->withTrashed();
     }
 
     public function bookings(): HasMany

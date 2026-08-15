@@ -21,7 +21,7 @@ class Location extends Model
 
     public function region(): BelongsTo
     {
-        return $this->belongsTo(Region::class);
+        return $this->belongsTo(Region::class)->withTrashed();
     }
 
     public function vehicles(): HasMany

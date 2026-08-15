@@ -51,8 +51,8 @@ class AuthController extends Controller
                 'created_at' => now(),
             ]);
 
-            return redirect()->intended(route('dashboard'))
-                ->with('success', 'Selamat datang kembali, ' . Auth::user()->name . '!');
+            return redirect()->intended(route('dashboard'));
+
         }
 
         return back()->withErrors([

@@ -28,11 +28,11 @@ class BookingApproval extends Model
 
     public function booking(): BelongsTo
     {
-        return $this->belongsTo(VehicleBooking::class, 'vehicle_booking_id');
+        return $this->belongsTo(VehicleBooking::class, 'vehicle_booking_id')->withTrashed();
     }
 
     public function approver(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'approver_id');
+        return $this->belongsTo(User::class, 'approver_id')->withTrashed();
     }
 }
