@@ -331,6 +331,7 @@ class VehicleBookingController extends Controller
                 'status' => 'pending',
             ]);
 
+
             // Update real-time status if the booking is active right now
             $now = Carbon::now();
             $startDt = Carbon::parse($validated['start_date']);
@@ -505,10 +506,10 @@ class VehicleBookingController extends Controller
 
         $booking = VehicleBooking::findOrFail($id);
 
-        if (in_array($booking->status, ['completed', 'cancelled'])) {
+        if (!in_array($booking->status, ['approved', 'in_progress'])) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pemesanan ini sudah selesai atau dibatalkan.',
+                'message' => 'Hanya pemesanan yang sudah disetujui (approved) atau sedang berjalan (in_progress) yang dapat diselesaikan.',
             ], 422);
         }
 

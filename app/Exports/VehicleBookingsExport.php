@@ -124,7 +124,7 @@ class VehicleBookingsExport implements FromCollection, WithHeadings, WithMapping
             $booking->vehicle?->name ?? '-',
             $booking->vehicle?->license_plate ?? '-',
             $booking->vehicle?->type ? ucfirst(str_replace('_', ' ', $booking->vehicle->type)) : '-',
-            $booking->vehicle?->ownership_type === 'rented' ? 'Sewa (Rental)' : 'Milik Perusahaan',
+            $booking->vehicle?->ownership === 'rented' ? 'Sewa (Rental)' : 'Milik Perusahaan',
             $booking->vehicle?->fuel_type ?? '-',
             $booking->vehicle?->location?->name ?? '-',
             $booking->driver?->name ?? '-',

@@ -23,30 +23,50 @@ class DashboardController extends Controller
         $roleName = strtolower($user->role?->name ?? '');
         $userLevel = $user->role?->level ?? null;
 
-        // 1. Vehicle Fleet Metrics
-        $totalVehicles = Vehicle::count();
-        $passengerVehicles = Vehicle::where('type', 'passenger')->count();
-        $cargoVehicles = Vehicle::where('type', 'cargo')->count();
+        // 1. Vehicle Fleet Metrics (Single Aggregate Query — replaces 9 individual queries)
+        $vehicleStats = Vehicle::selectRaw("
+            COUNT(*) as total,
+            SUM(CASE WHEN type = 'passenger' THEN 1 ELSE 0 END) as passenger,
+            SUM(CASE WHEN type = 'cargo' THEN 1 ELSE 0 END) as cargo,
+            SUM(CASE WHEN ownership = 'company' THEN 1 ELSE 0 END) as company_owned,
+            SUM(CASE WHEN ownership = 'rented' THEN 1 ELSE 0 END) as rented,
+            SUM(CASE WHEN status = 'available' THEN 1 ELSE 0 END) as available,
+            SUM(CASE WHEN status = 'reserved' THEN 1 ELSE 0 END) as reserved,
+            SUM(CASE WHEN status = 'in_use' THEN 1 ELSE 0 END) as in_use,
+            SUM(CASE WHEN status = 'maintenance' THEN 1 ELSE 0 END) as maintenance
+        ")->first();
 
-        $companyVehicles = Vehicle::where('ownership', 'company')->count();
-        $rentedVehicles = Vehicle::where('ownership', 'rented')->count();
+        $totalVehicles = (int) $vehicleStats->total;
+        $passengerVehicles = (int) $vehicleStats->passenger;
+        $cargoVehicles = (int) $vehicleStats->cargo;
+        $companyVehicles = (int) $vehicleStats->company_owned;
+        $rentedVehicles = (int) $vehicleStats->rented;
+        $availableVehiclesCount = (int) $vehicleStats->available;
+        $reservedVehiclesCount = (int) $vehicleStats->reserved;
+        $inUseVehiclesCount = (int) $vehicleStats->in_use;
+        $maintenanceVehiclesCount = (int) $vehicleStats->maintenance;
 
-        $availableVehiclesCount = Vehicle::where('status', 'available')->count();
-        $reservedVehiclesCount = Vehicle::where('status', 'reserved')->count();
-        $inUseVehiclesCount = Vehicle::where('status', 'in_use')->count();
-        $maintenanceVehiclesCount = Vehicle::where('status', 'maintenance')->count();
+        // 2. Booking Metrics (Single Aggregate Query — replaces 5 individual queries, excludes cancelled & soft-deleted)
+        $bookingStats = VehicleBooking::where('status', '!=', 'cancelled')
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress
+            ")->first();
 
-        // 2. Booking Metrics (Exclude Cancelled & Soft-deleted)
-        $totalBookings = VehicleBooking::whereNull('deleted_at')->where('status', '!=', 'cancelled')->count();
-        $pendingBookings = VehicleBooking::whereNull('deleted_at')->where('status', 'pending')->count();
-        $approvedBookings = VehicleBooking::whereNull('deleted_at')->where('status', 'approved')->count();
-        $completedBookings = VehicleBooking::whereNull('deleted_at')->where('status', 'completed')->count();
-        $inProgressBookings = VehicleBooking::whereNull('deleted_at')->where('status', 'in_progress')->count();
+        $totalBookings = (int) $bookingStats->total;
+        $pendingBookings = (int) $bookingStats->pending;
+        $approvedBookings = (int) $bookingStats->approved;
+        $completedBookings = (int) $bookingStats->completed;
+        $inProgressBookings = (int) $bookingStats->in_progress;
 
-        // 3. Operational Costs & Consumption
-        $totalFuelCost = FuelLog::sum('total_cost');
-        $totalFuelLiters = FuelLog::sum('fuel_amount');
-        $totalServiceCost = ServiceLog::sum('cost');
+        // 3. Operational Costs & Consumption (2 queries instead of 3)
+        $fuelStats = FuelLog::selectRaw('COALESCE(SUM(total_cost), 0) as total_cost, COALESCE(SUM(fuel_amount), 0) as total_liters')->first();
+        $totalFuelCost = (float) $fuelStats->total_cost;
+        $totalFuelLiters = (float) $fuelStats->total_liters;
+        $totalServiceCost = (float) ServiceLog::sum('cost');
 
         // 4. Pending Approvals based on User Role & Sequential Approval Level (EXCLUDE CANCELLED / DELETED BOOKINGS)
         $pendingApprovalsQuery = BookingApproval::where('status', 'pending')
@@ -122,33 +142,33 @@ class DashboardController extends Controller
             ->get();
 
         // 7. Chart Data: Tren Pemakaian Kendaraan Bulanan (Past 6 Months)
+        //    Single aggregate query with withTrashed() — includes soft-deleted rejected bookings for accurate trends
+        $sixMonthsAgo = now()->subMonths(5)->startOfMonth();
+        $monthlyRawData = VehicleBooking::withTrashed()
+            ->where('start_date', '>=', $sixMonthsAgo)
+            ->selectRaw("
+                YEAR(start_date) as y,
+                MONTH(start_date) as m,
+                SUM(CASE WHEN status IN ('approved', 'in_progress', 'completed') THEN 1 ELSE 0 END) as approved_count,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected_count
+            ")
+            ->groupByRaw('YEAR(start_date), MONTH(start_date)')
+            ->get()
+            ->keyBy(fn($item) => $item->y . '-' . $item->m);
+
         $monthlyUsage = collect([]);
         for ($i = 5; $i >= 0; $i--) {
             $dt = now()->subMonths($i);
-            $year = $dt->year;
-            $month = $dt->month;
+            $key = $dt->year . '-' . $dt->month;
             $label = $dt->translatedFormat('M Y');
-
-            $approved = VehicleBooking::whereYear('start_date', $year)
-                ->whereMonth('start_date', $month)
-                ->whereIn('status', ['approved', 'in_progress', 'completed'])
-                ->count();
-
-            $completed = VehicleBooking::whereYear('start_date', $year)
-                ->whereMonth('start_date', $month)
-                ->where('status', 'completed')
-                ->count();
-
-            $rejected = VehicleBooking::whereYear('start_date', $year)
-                ->whereMonth('start_date', $month)
-                ->where('status', 'rejected')
-                ->count();
+            $data = $monthlyRawData->get($key);
 
             $monthlyUsage->push([
                 'label' => $label,
-                'approved' => $approved,
-                'completed' => $completed,
-                'rejected' => $rejected,
+                'approved' => (int) ($data?->approved_count ?? 0),
+                'completed' => (int) ($data?->completed_count ?? 0),
+                'rejected' => (int) ($data?->rejected_count ?? 0),
             ]);
         }
         $monthlyLabels = $monthlyUsage->pluck('label')->toArray();
