@@ -371,22 +371,44 @@
     }
 
     function renderBookingDetailModal(data) {
+      const isBookingCancelled = (data.status === 'cancelled' || data.deleted_at != null);
+
+      let bookingStatusBadge = '<span class="badge text-bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Menunggu Approval</span>';
+      if (isBookingCancelled) {
+        bookingStatusBadge = '<span class="badge text-bg-secondary"><i class="bi bi-slash-circle me-1"></i>Dibatalkan</span>';
+      } else if (data.status === 'approved') {
+        bookingStatusBadge = '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Disetujui</span>';
+      } else if (data.status === 'rejected') {
+        bookingStatusBadge = '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Ditolak</span>';
+      } else if (data.status === 'completed') {
+        bookingStatusBadge = '<span class="badge text-bg-info"><i class="bi bi-check2-all me-1"></i>Selesai</span>';
+      } else if (data.status === 'in_progress') {
+        bookingStatusBadge = '<span class="badge text-bg-primary"><i class="bi bi-play-circle me-1"></i>Sedang Berjalan</span>';
+      }
+
       let approvalsHtml = '<div class="list-group list-group-flush border rounded-3">';
       if (data.approvals && data.approvals.length > 0) {
         data.approvals.forEach(function(app) {
           const approverName = app.approver ? escapeHtml(app.approver.name) : 'Approver';
           const roleName = app.approver && app.approver.role ? escapeHtml(app.approver.role.label || app.approver.role.name) : '-';
           
-          let badge = '<span class="badge text-bg-warning text-dark">Menunggu</span>';
-          if (app.status === 'approved') {
+          let badge = '<span class="badge text-bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i>Menunggu</span>';
+          if (app.status === 'cancelled' || isBookingCancelled) {
+            badge = '<span class="badge text-bg-secondary"><i class="bi bi-slash-circle me-1"></i>Dibatalkan</span>';
+          } else if (app.status === 'approved') {
             badge = '<span class="badge text-bg-success"><i class="bi bi-check-circle me-1"></i>Disetujui</span>';
           } else if (app.status === 'rejected') {
             badge = '<span class="badge text-bg-danger"><i class="bi bi-x-circle me-1"></i>Ditolak</span>';
           }
 
-          const timeBadge = app.responded_at ?
-            `<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-clock me-1"></i>${formatDateTime(app.responded_at)}</span>` :
-            '<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-hourglass me-1"></i>Belum Diproses</span>';
+          let timeBadge = '';
+          if (app.responded_at) {
+            timeBadge = `<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-clock me-1"></i>${formatDateTime(app.responded_at)}</span>`;
+          } else if (app.status === 'cancelled' || isBookingCancelled) {
+            timeBadge = '<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-dash-circle me-1"></i>Dibatalkan</span>';
+          } else {
+            timeBadge = '<span class="badge text-bg-light border text-muted ms-2"><i class="bi bi-hourglass me-1"></i>Belum Diproses</span>';
+          }
 
           const noteHtml = app.note ?
             `<div class="mt-2 small bg-white p-2 border rounded text-dark"><strong>Catatan:</strong> ${escapeHtml(app.note)}</div>` : '';
@@ -427,6 +449,7 @@
           <div class="col-md-6 mt-1">
             <div class="p-3 rounded-3 h-100 border">
               <div class="mb-2"><strong>Kode:</strong> <span class="text-primary font-monospace fs-6">${escapeHtml(data.booking_code)}</span></div>
+              <div class="mb-2"><strong>Status:</strong> ${bookingStatusBadge}</div>
               <div class="mb-2"><strong>Pemohon:</strong> ${data.user ? escapeHtml(data.user.name) : '-'}</div>
               <div class="mb-2"><strong>Jadwal:</strong> ${startDateText} s/d ${endDateText}</div>
             </div>

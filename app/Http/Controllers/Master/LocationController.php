@@ -156,6 +156,13 @@ class LocationController extends Controller
             ], 403);
         }
 
+        if ($location->vehicles()->count() > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus! Lokasi "' . $location->name . '" masih memiliki ' . $location->vehicles()->count() . ' armada kendaraan yang ditempatkan di pool ini.',
+            ], 422);
+        }
+
         $locationName = $location->name;
         $locationId = $location->id;
 

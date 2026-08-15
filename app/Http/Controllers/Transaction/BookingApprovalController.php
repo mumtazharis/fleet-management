@@ -141,6 +141,14 @@ class BookingApprovalController extends Controller
             ], 422);
         }
 
+        $booking = $approval->booking;
+        if (!$booking || $booking->trashed() || in_array($booking->status, ['cancelled', 'rejected'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pemesanan ini telah dibatalkan atau ditolak sebelumnya.',
+            ], 422);
+        }
+
         // If Level 2 approval, verify Level 1 is approved
         if ($approval->approval_level == 2) {
             $l1Approved = BookingApproval::where('vehicle_booking_id', $approval->vehicle_booking_id)
@@ -163,8 +171,6 @@ class BookingApprovalController extends Controller
                 'responded_at' => now(),
                 'note' => $request->input('note', 'Disetujui oleh ' . $user->name),
             ]);
-
-            $booking = $approval->booking;
 
             // Check if all approvals for this booking are now approved
             $unapprovedCount = BookingApproval::where('vehicle_booking_id', $booking->id)
@@ -241,6 +247,14 @@ class BookingApprovalController extends Controller
             ], 422);
         }
 
+        $booking = $approval->booking;
+        if (!$booking || $booking->trashed() || in_array($booking->status, ['cancelled', 'rejected'])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pemesanan ini telah dibatalkan atau ditolak sebelumnya.',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'note' => ['required', 'string', 'max:500'],
         ], [
@@ -256,10 +270,18 @@ class BookingApprovalController extends Controller
                 'responded_at' => now(),
             ]);
 
-            $booking = $approval->booking;
-
             // Set booking status to rejected
             $booking->update(['status' => 'rejected']);
+
+            // Auto cancel other pending approvals for this booking (e.g. Level 2)
+            BookingApproval::where('vehicle_booking_id', $booking->id)
+                ->where('id', '!=', $approval->id)
+                ->where('status', 'pending')
+                ->update([
+                    'status' => 'cancelled',
+                    'note' => 'Dibatalkan otomatis karena ditolak pada Level ' . $approval->approval_level,
+                    'responded_at' => now(),
+                ]);
 
             // Restore Vehicle & Driver status back to 'available'
             if ($booking->vehicle && in_array($booking->vehicle->status, ['reserved', 'in_use'])) {

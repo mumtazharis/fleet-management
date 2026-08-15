@@ -240,10 +240,10 @@ class ServiceLogController extends Controller
 
         $serviceLog = ServiceLog::with('vehicle')->findOrFail($id);
 
-        if ($serviceLog->status === 'completed') {
+        if ($serviceLog->status !== 'in_progress') {
             return response()->json([
                 'success' => false,
-                'message' => 'Catatan servis ini sudah berstatus SELESAI.',
+                'message' => 'Hanya transaksi servis yang sedang berjalan (In Progress) yang dapat diselesaikan.',
             ], 422);
         }
 

@@ -135,6 +135,13 @@ class RentalCompanyController extends Controller
             ], 403);
         }
 
+        if ($rentalCompany->vehicles()->count() > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menghapus! Perusahaan sewa "' . $rentalCompany->name . '" masih terkait dengan ' . $rentalCompany->vehicles()->count() . ' armada kendaraan aktif.',
+            ], 422);
+        }
+
         $companyName = $rentalCompany->name;
         $companyId = $rentalCompany->id;
 
