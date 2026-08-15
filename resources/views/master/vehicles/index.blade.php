@@ -5,13 +5,9 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-truck-front" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-folder2-open"></i> Master Data</p>
-      <h1 class="h3 mb-1">Data Master Kendaraan</h1>
-      <p class="text-muted mb-0">Kelola armada kendaraan angkutan orang & barang, status kepemilikan, dan penempatan pool.</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Data Master Kendaraan</h1>
+    <p class="text-muted mb-0">Kelola armada kendaraan angkutan orang & barang, status kepemilikan, dan penempatan pool.</p>
   </div>
 
   @if(Auth::user()->role?->name === 'admin')
@@ -165,7 +161,7 @@
         render: function(data, type, row) {
           const plate = row.license_plate ? escapeHtml(row.license_plate) : '-';
           return `
-            <strong class="d-block text-dark fs-6">${escapeHtml(data)}</strong>
+            <span class="d-block text-dark fw-semibold">${escapeHtml(data)}</span>
             <span>${plate}</span>
           `;
         }
@@ -213,13 +209,13 @@
         name: 'status',
         render: function(data) {
           if (data === 'available') {
-            return '<span class="badge text-bg-success">Tersedia</span>';
+            return '<span class="badge p-1 text-bg-success">Tersedia</span>';
           } else if (data === 'reserved') {
-            return '<span class="badge text-bg-warning text-dark">Dipesan (Reserved)</span>';
+            return '<span class="badge p-1 text-bg-warning text-dark">Dipesan (Reserved)</span>';
           } else if (data === 'in_use') {
-            return '<span class="badge text-bg-primary">Sedang Digunakan</span>';
+            return '<span class="badge p-1 text-bg-primary">Sedang Digunakan</span>';
           }
-          return '<span class="badge text-bg-danger">Dalam Service</span>';
+          return '<span class="badge p-1 text-bg-danger">Dalam Service</span>';
         }
       }
     ];

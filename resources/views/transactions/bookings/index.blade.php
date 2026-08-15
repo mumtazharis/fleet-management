@@ -5,20 +5,22 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-journal-check" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-shield-check"></i> Operasional Fleet</p>
-      <h1 class="h3 mb-1">Pemesanan Kendaraan Tambang</h1>
-      <p class="text-muted mb-0">Input pemesanan kendaraan, tentukan driver, dan tetapkan pihak penyetuju berjenjang (minimal 2 level).</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Pemesanan Kendaraan Tambang</h1>
+    <p class="text-muted mb-0">Input pemesanan kendaraan, tentukan driver, dan tetapkan pihak penyetuju.</p>
   </div>
 
-  @if(Auth::user()->role?->name === 'admin')
-  <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateBooking">
-    <i class="bi bi-plus-lg me-1"></i> Input Pemesanan Baru
-  </button>
-  @endif
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <button type="button" class="btn btn-success fw-semibold px-3 py-2 shadow-sm" id="btnExportBookings" title="Export Semua Detail Pemesanan ke Excel">
+      <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
+    </button>
+
+    @if(Auth::user()->role?->name === 'admin')
+    <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateBooking">
+      <i class="bi bi-plus-lg me-1"></i> Input Pemesanan Baru
+    </button>
+    @endif
+  </div>
 </div>
 
 <!-- DATA TABLE PANEL (SERVER-SIDE) -->
@@ -190,22 +192,6 @@
 </div>
 @endsection
 
-@push('styles')
-<style>
-  #tableBookings th:first-child,
-  #tableBookings td:first-child {
-    width: 40px !important;
-    max-width: 40px !important;
-    padding-left: 8px !important;
-    padding-right: 8px !important;
-    text-align: center;
-  }
-  #tableBookings th:first-child::before,
-  #tableBookings th:first-child::after {
-    display: none !important;
-  }
-</style>
-@endpush
 
 @section('scripts')
 <script>
@@ -379,6 +365,54 @@
         }
       });
     }
+
+    // Tombol Export Excel (AJAX dengan Loading)
+    $('#btnExportBookings').on('click', function(e) {
+      e.preventDefault();
+      const btn = $(this);
+      const originalHtml = btn.html();
+
+      btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span> Mengekspor...');
+
+      fetch("{{ route('bookings.export') }}", {
+        method: 'GET',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        }
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Gagal mengekspor file Excel.');
+        }
+        let filename = 'data-pemesanan-kendaraan.xlsx';
+        const disposition = response.headers.get('Content-Disposition');
+        if (disposition && disposition.indexOf('filename=') !== -1) {
+          const matches = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+          if (matches != null && matches[1]) {
+            filename = matches[1].replace(/['"]/g, '');
+          }
+        }
+        return response.blob().then(blob => ({ blob, filename }));
+      })
+      .then(({ blob, filename }) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+      })
+      .catch(error => {
+        Swal.fire('Error', error.message || 'Terjadi kesalahan saat mengekspor Excel.', 'error');
+      })
+      .finally(() => {
+        btn.prop('disabled', false).html(originalHtml);
+      });
+    });
 
     // Tombol Tambah Pemesanan
     $('#btnCreateBooking').on('click', function() {

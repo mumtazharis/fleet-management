@@ -5,14 +5,11 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-person-badge" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-folder2-open"></i> Master Data</p>
-      <h1 class="h3 mb-1">Data Master Driver</h1>
-      <p class="text-muted mb-0">Kelola data pengemudi/driver, lisensi SIM, dan status penugasan operasional.</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Data Master Driver</h1>
+    <p class="text-muted mb-0">Kelola data pengemudi/driver, lisensi SIM, dan status penugasan operasional.</p>
   </div>
+  
 
   @if(Auth::user()->role?->name === 'admin')
   <button type="button" class="btn btn-primary fw-semibold px-3 py-2 shadow-sm" id="btnCreateDriver">
@@ -135,13 +132,13 @@
         name: 'status',
         render: function(data) {
           if (data === 'available') {
-            return '<span class="badge text-bg-success">Tersedia</span>';
+            return '<span class="badge p-1 text-bg-success">Tersedia</span>';
           } else if (data === 'reserved') {
-            return '<span class="badge text-bg-warning text-dark">Dipesan (Reserved)</span>';
+            return '<span class="badge p-1 text-bg-warning text-dark">Dipesan (Reserved)</span>';
           } else if (data === 'on_trip') {
-            return '<span class="badge text-bg-primary">Sedang Bertugas</span>';
+            return '<span class="badge p-1 text-bg-primary">Sedang Bertugas</span>';
           }
-          return '<span class="badge text-bg-secondary">Libur / Nonaktif</span>';
+          return '<span class="badge p-1 text-bg-secondary">Libur / Nonaktif</span>';
         }
       }
     ];

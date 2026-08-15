@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('locations', LocationController::class);
 
     // Transaction Routes (Pemesanan Kendaraan & Persetujuan Berjenjang)
+    Route::get('/bookings/export', [VehicleBookingController::class, 'export'])->name('bookings.export');
     Route::get('/bookings-options', [VehicleBookingController::class, 'options'])->name('bookings.options');
     Route::post('/bookings/{booking}/complete', [VehicleBookingController::class, 'complete'])->name('bookings.complete');
     Route::resource('bookings', VehicleBookingController::class);

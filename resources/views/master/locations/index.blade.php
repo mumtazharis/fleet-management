@@ -5,13 +5,9 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-geo-alt-fill" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-folder2-open"></i> Master Data</p>
-      <h1 class="h3 mb-1">Data Master Lokasi & Region</h1>
-      <p class="text-muted mb-0">Kelola lokasi operasional.</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Data Master Lokasi & Region</h1>
+    <p class="text-muted mb-0">Kelola lokasi operasional.</p>
   </div>
 
   @if(Auth::user()->role?->name === 'admin')

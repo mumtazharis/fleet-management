@@ -5,13 +5,9 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-tools" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-activity"></i> Monitoring Fleet</p>
-      <h1 class="h3 mb-1">Riwayat & Pemeliharaan Servis Armada</h1>
-      <p class="text-muted mb-0">Kelola & pantau perawatan berkala, perbaikan mesin, ganti oli, dan riwayat biaya servis kendaraan tambang.</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Riwayat & Pemeliharaan Servis Armada</h1>
+    <p class="text-muted mb-0">Kelola & pantau perawatan berkala, perbaikan mesin, ganti oli, dan riwayat biaya servis kendaraan tambang.</p>
   </div>
 
   @if(Auth::user()->role?->name === 'admin')
@@ -232,7 +228,7 @@
 
             return `
               <div class="lh-sm">
-                <strong class="d-block text-dark">${vName} (${plate})</strong>
+                <span class="d-block text-dark fw-semibold">${vName} <small class="text-muted">(${plate})</small></span> 
                 <small class="text-muted">Pool: ${location}</small>
               </div>
             `;
@@ -257,11 +253,11 @@
           name: 'status',
           render: function(data) {
             if (data === 'completed') {
-              return '<span class="badge text-bg-success"><i class="bi bi-check-circle-fill me-1"></i> Selesai</span>';
+              return '<span class="badge p-1 text-bg-success">Selesai</span>';
             } else if (data === 'cancelled') {
-              return '<span class="badge text-bg-secondary"><i class="bi bi-x-octagon me-1"></i> Dibatalkan</span>';
+              return '<span class="badge p-1 text-bg-secondary">Dibatalkan</span>';
             }
-            return '<span class="badge text-bg-warning text-dark"><i class="bi bi-gear-wide-connected me-1"></i> Dalam Servis</span>';
+            return '<span class="badge p-1 text-bg-warning text-dark">Dalam Servis</span>';
           }
         },
         {

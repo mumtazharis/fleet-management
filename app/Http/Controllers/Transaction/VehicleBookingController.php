@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Transaction;
 
+use App\Exports\VehicleBookingsExport;
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
 use App\Models\BookingApproval;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Maatwebsite\Excel\Facades\Excel;
 use Yajra\DataTables\Facades\DataTables;
 
 class VehicleBookingController extends Controller
@@ -383,5 +385,15 @@ class VehicleBookingController extends Controller
                 'message' => 'Gagal menyelesaikan pemesanan: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    /**
+     * Export all vehicle bookings to Excel spreadsheet.
+     */
+    public function export()
+    {
+        $fileName = 'data-pemesanan-kendaraan-' . now()->format('Y-m-d-His') . '.xlsx';
+
+        return Excel::download(new VehicleBookingsExport, $fileName);
     }
 }

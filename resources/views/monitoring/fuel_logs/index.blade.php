@@ -5,13 +5,9 @@
 @section('content')
 <!-- Page Heading -->
 <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
-  <div class="page-heading-copy mb-0">
-    <span class="page-icon bg-warning text-dark"><i class="bi bi-fuel-pump-fill" aria-hidden="true"></i></span>
-    <div>
-      <p class="eyebrow mb-1 text-warning fw-bold"><i class="bi bi-activity"></i> Monitoring Fleet</p>
-      <h1 class="h3 mb-1">Pencatatan Konsumsi BBM</h1>
-      <p class="text-muted mb-0">Kelola & pantau riwayat pengisian bahan bakar armada tambang, jumlah liter, biaya, dan odometer.</p>
-    </div>
+  <div>
+    <h1 class="h3 mb-1">Pencatatan Konsumsi BBM</h1>
+    <p class="text-muted mb-0">Kelola & pantau riwayat pengisian bahan bakar armada tambang, jumlah liter, biaya, dan odometer.</p>
   </div>
 
   @if(Auth::user()->role?->name === 'admin')
@@ -241,7 +237,7 @@
           render: function(data, type, row) {
             const vName = row.vehicle ? escapeHtml(row.vehicle.name) : 'Kendaraan Terhapus';
             const plate = row.vehicle ? escapeHtml(row.vehicle.license_plate) : '-';
-            return `<strong>${vName}</strong> <small class="text-muted">(${plate})</small>`;
+            return `<span class="fw-semibold">${vName}</span> <small class="text-muted">(${plate})</small>`;
           }
         },
         {
