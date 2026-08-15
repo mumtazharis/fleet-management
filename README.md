@@ -40,7 +40,7 @@ Berikut adalah tautan berkas diagram arsitektur dan alur kerja sistem:
 
 ### Langkah 1: Clone & Masuk ke Direktori Proyek
 ```bash
-git clone <repository-url>
+git clone https://github.com/mumtazharis/fleet-management.git
 cd fleet-management
 ```
 
